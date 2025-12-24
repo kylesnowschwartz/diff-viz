@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 
 	"github.com/kylesnowschwartz/diff-viz/internal/diff"
@@ -39,6 +40,7 @@ Examples:
   git-diff-tree HEAD~3             Last 3 commits
   git-diff-tree main feature       Compare branches
   git-diff-tree -m smart           Compact sparkline view
+  git-diff-tree --demo             Show all modes (root..HEAD)
   git-diff-tree --stats-json       Output raw diff stats as JSON
 
 Modes:
@@ -70,6 +72,7 @@ func main() {
 	depth := flag.Int("depth", 4, "Max hierarchy depth to render (for icicle mode, 0=unlimited)")
 	help := flag.Bool("h", false, "Show help")
 	listModes := flag.Bool("list-modes", false, "List valid modes (for scripting)")
+	demo := flag.Bool("demo", false, "Show all visualization modes (compares HEAD to root commit)")
 	statsJSON := flag.Bool("stats-json", false, "Output raw diff stats as JSON (for programmatic consumption)")
 	baseline := flag.String("baseline", "", "Baseline tree SHA to compare against (uses current working tree)")
 	verbose := flag.Bool("v", false, "Print warnings to stderr")
@@ -84,6 +87,11 @@ func main() {
 	if *listModes {
 		fmt.Println(strings.Join(validModes, " "))
 		os.Exit(0)
+	}
+
+	if *demo {
+		runDemo(!*noColor, *width, *depth)
+		return
 	}
 
 	// Resolve verbose flag
@@ -166,6 +174,38 @@ func outputStatsJSON(baseline string, verbose bool) {
 		os.Exit(1)
 	}
 	fmt.Println(string(output))
+}
+
+// runDemo shows all visualization modes using root..HEAD diff.
+func runDemo(useColor bool, width, depth int) {
+	// Get root commit
+	out, err := exec.Command("git", "rev-list", "--max-parents=0", "HEAD").Output()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: could not find root commit: %v\n", err)
+		os.Exit(1)
+	}
+	root := strings.TrimSpace(string(out))
+
+	// Get diff stats
+	stats, _, err := diff.GetDiffStats(root + "..HEAD")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+
+	if stats.TotalFiles == 0 {
+		fmt.Println("No changes to display (root..HEAD is empty)")
+		return
+	}
+
+	for i, mode := range validModes {
+		if i > 0 {
+			fmt.Println()
+		}
+		fmt.Printf("=== %s ===\n", mode)
+		renderer := getRenderer(mode, useColor, width, depth)
+		renderer.Render(stats)
+	}
 }
 
 func isValidMode(mode string) bool {

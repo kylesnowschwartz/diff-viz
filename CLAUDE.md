@@ -42,3 +42,18 @@ internal/
 ```
 
 Used by tools like bumper-lanes for threshold calculations.
+
+## Releases
+
+Auto-releases via GitHub Actions on push to main. Uses conventional commits:
+
+- `feat: ...` - minor version bump (v0.1.0 -> v0.2.0)
+- `fix: ...` - patch version bump (v0.1.0 -> v0.1.1)
+- `docs:`, `chore:`, `style:`, `test:` - no release
+
+Consumers install via:
+```bash
+go install github.com/kylesnowschwartz/diff-viz/cmd/git-diff-tree@latest
+```
+
+No manual tagging required. The workflow creates GitHub Releases with auto-generated notes.

@@ -9,6 +9,7 @@ just test      # Run tests
 just build     # Build binary
 just check     # Vet + build
 just demo      # See all modes in action
+git-diff-tree --demo  # Same, but built into CLI
 ```
 
 ## Architecture
@@ -32,6 +33,13 @@ internal/
 - `diff.DiffStats` - Parsed diff data (files, adds, dels)
 - `render.TreeNode` - Hierarchical file tree for visualization
 - `Renderer` interface - `Render(stats *diff.DiffStats)`
+
+## Error Handling
+
+Fail-open with warnings. Diff functions return `(*DiffStats, []string, error)`:
+- Continues on git errors, malformed input, file read failures
+- Warnings collected as `[]string` (idiomatic Go pattern)
+- Use `-v`/`--verbose` to print warnings to stderr
 
 ## JSON Output
 

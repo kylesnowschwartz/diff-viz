@@ -72,6 +72,8 @@ func main() {
 	listModes := flag.Bool("list-modes", false, "List valid modes (for scripting)")
 	statsJSON := flag.Bool("stats-json", false, "Output raw diff stats as JSON (for programmatic consumption)")
 	baseline := flag.String("baseline", "", "Baseline tree SHA to compare against (uses current working tree)")
+	verbose := flag.Bool("v", false, "Print warnings to stderr")
+	verboseLong := flag.Bool("verbose", false, "Print warnings to stderr")
 	flag.Parse()
 
 	if *help {
@@ -84,9 +86,12 @@ func main() {
 		os.Exit(0)
 	}
 
+	// Resolve verbose flag
+	showWarnings := *verbose || *verboseLong
+
 	// Handle --stats-json mode (raw stats for programmatic consumption)
 	if *statsJSON {
-		outputStatsJSON(*baseline)
+		outputStatsJSON(*baseline, showWarnings)
 		return
 	}
 
@@ -103,11 +108,12 @@ func main() {
 	}
 
 	// Get diff stats with remaining args
-	stats, err := diff.GetAllStats(flag.Args()...)
+	stats, warnings, err := diff.GetAllStats(flag.Args()...)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
+	printWarnings(warnings, showWarnings)
 
 	useColor := !*noColor
 
@@ -116,11 +122,22 @@ func main() {
 	renderer.Render(stats)
 }
 
+// printWarnings outputs warnings to stderr if verbose mode is enabled.
+func printWarnings(warnings []string, verbose bool) {
+	if !verbose || len(warnings) == 0 {
+		return
+	}
+	for _, w := range warnings {
+		fmt.Fprintf(os.Stderr, "warning: %s\n", w)
+	}
+}
+
 // outputStatsJSON outputs raw diff stats as JSON.
 // This provides a stable interface for programmatic consumers
 // without requiring Go import coupling.
-func outputStatsJSON(baseline string) {
+func outputStatsJSON(baseline string, verbose bool) {
 	var stats *diff.DiffStats
+	var warnings []string
 	var err error
 
 	if baseline != "" {
@@ -129,18 +146,19 @@ func outputStatsJSON(baseline string) {
 			fmt.Fprintf(os.Stderr, "error capturing tree: %v\n", err)
 			os.Exit(1)
 		}
-		stats, err = diff.GetTreeDiffStats(baseline, currentTree)
+		stats, warnings, err = diff.GetTreeDiffStats(baseline, currentTree)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			os.Exit(1)
 		}
 	} else {
-		stats, err = diff.GetAllStats()
+		stats, warnings, err = diff.GetAllStats()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			os.Exit(1)
 		}
 	}
+	printWarnings(warnings, verbose)
 
 	output, err := json.Marshal(stats.ToJSON())
 	if err != nil {

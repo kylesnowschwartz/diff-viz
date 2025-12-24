@@ -40,9 +40,9 @@ var DefaultCharLevels = []CharLevel{
 
 // BarConfig controls bar rendering behavior.
 type BarConfig struct {
-	Width      int          // Maximum bar width in characters
-	Thresholds []Threshold  // Fill level thresholds
-	CharLevels []CharLevel  // Block character thresholds
+	Width      int         // Maximum bar width in characters
+	Thresholds []Threshold // Fill level thresholds
+	CharLevels []CharLevel // Block character thresholds
 }
 
 // DefaultBarConfig returns a BarConfig with sensible defaults.

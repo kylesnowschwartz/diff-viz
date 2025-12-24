@@ -12,10 +12,10 @@ func TestBarConfig_FilledFor(t *testing.T) {
 		total int
 		want  int
 	}{
-		{0, 1},     // minimum 1 block
-		{14, 1},    // below 15 threshold
-		{15, 2},    // at threshold
-		{29, 2},    // below next
+		{0, 1},  // minimum 1 block
+		{14, 1}, // below 15 threshold
+		{15, 2}, // at threshold
+		{29, 2}, // below next
 		{30, 3},
 		{50, 4},
 		{75, 5},
@@ -52,9 +52,9 @@ func TestBarConfig_BlockChar(t *testing.T) {
 		total int
 		want  string
 	}{
-		{0, BlockLight},   // below 100
-		{50, BlockLight},  // below 100
-		{99, BlockLight},  // just below
+		{0, BlockLight},  // below 100
+		{50, BlockLight}, // below 100
+		{99, BlockLight}, // just below
 		{100, BlockMedium},
 		{199, BlockMedium},
 		{200, BlockFull},

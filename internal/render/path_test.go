@@ -11,11 +11,11 @@ func TestGetTopDir(t *testing.T) {
 		path string
 		want string
 	}{
-		{"README.md", "README.md"},           // root file
-		{"src/main.go", "src"},               // depth 1
-		{"src/lib/parser.go", "src"},         // depth 2+
-		{"a/b/c/d/e.go", "a"},                // deep nesting
-		{".gitignore", ".gitignore"},         // dotfile at root
+		{"README.md", "README.md"},              // root file
+		{"src/main.go", "src"},                  // depth 1
+		{"src/lib/parser.go", "src"},            // depth 2+
+		{"a/b/c/d/e.go", "a"},                   // deep nesting
+		{".gitignore", ".gitignore"},            // dotfile at root
 		{".github/workflows/ci.yml", ".github"}, // hidden dir
 	}
 
@@ -213,7 +213,7 @@ func TestSortTopDirs(t *testing.T) {
 func TestSortTopDirs_SumsMultipleItems(t *testing.T) {
 	groups := map[string][]mockTotaler{
 		"many_small": {mockTotaler(10), mockTotaler(10), mockTotaler(10)}, // 30 total
-		"one_large":  {mockTotaler(50)},                                    // 50 total
+		"one_large":  {mockTotaler(50)},                                   // 50 total
 	}
 
 	result := SortTopDirs(groups)
@@ -222,4 +222,3 @@ func TestSortTopDirs_SumsMultipleItems(t *testing.T) {
 		t.Errorf("result[0] = %q, want %q (50 > 30)", result[0], "one_large")
 	}
 }
-

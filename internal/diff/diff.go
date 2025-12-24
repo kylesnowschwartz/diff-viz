@@ -4,6 +4,7 @@ package diff
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"os"
 	"os/exec"
 	"strconv"
@@ -74,23 +75,38 @@ type DiffStats struct {
 
 // GetDiffStats runs git diff --numstat and parses the output.
 // args are passed directly to git diff (e.g., "HEAD", "--cached", "main..feature").
-func GetDiffStats(args ...string) (*DiffStats, error) {
+// Returns warnings for non-fatal issues (git errors that might indicate problems).
+func GetDiffStats(args ...string) (*DiffStats, []string, error) {
+	var warnings []string
 	cmdArgs := append([]string{"diff", "--numstat"}, args...)
 	cmd := exec.Command("git", cmdArgs...)
 
 	output, err := cmd.Output()
 	if err != nil {
-		// No changes or git error - return empty stats
-		return &DiffStats{}, nil
+		// Check if it's an ExitError with stderr info
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			stderr := strings.TrimSpace(string(exitErr.Stderr))
+			if stderr != "" {
+				warnings = append(warnings, fmt.Sprintf("git diff: %s", stderr))
+			} else {
+				warnings = append(warnings, fmt.Sprintf("git diff exited with code %d", exitErr.ExitCode()))
+			}
+		}
+		// Fail-open: return empty stats with warning
+		return &DiffStats{}, warnings, nil
 	}
 
-	return ParseNumstat(string(output))
+	stats, parseWarnings, err := ParseNumstat(string(output))
+	warnings = append(warnings, parseWarnings...)
+	return stats, warnings, err
 }
 
 // ParseNumstat parses git diff --numstat output.
 // Format: "additions\tdeletions\tpath" or "-\t-\tpath" for binary files.
-func ParseNumstat(output string) (*DiffStats, error) {
+// Returns warnings for malformed lines (fail-open: skips bad lines, continues parsing).
+func ParseNumstat(output string) (*DiffStats, []string, error) {
 	stats := &DiffStats{}
+	var warnings []string
 	scanner := bufio.NewScanner(strings.NewReader(output))
 
 	for scanner.Scan() {
@@ -101,6 +117,7 @@ func ParseNumstat(output string) (*DiffStats, error) {
 
 		parts := strings.SplitN(line, "\t", 3)
 		if len(parts) != 3 {
+			warnings = append(warnings, fmt.Sprintf("malformed numstat line (expected 3 fields): %q", line))
 			continue
 		}
 
@@ -110,8 +127,15 @@ func ParseNumstat(output string) (*DiffStats, error) {
 			// Binary file
 			file.IsBinary = true
 		} else {
-			file.Additions, _ = strconv.Atoi(parts[0])
-			file.Deletions, _ = strconv.Atoi(parts[1])
+			var err error
+			file.Additions, err = strconv.Atoi(parts[0])
+			if err != nil {
+				warnings = append(warnings, fmt.Sprintf("invalid additions count %q for %s: %v", parts[0], parts[2], err))
+			}
+			file.Deletions, err = strconv.Atoi(parts[1])
+			if err != nil {
+				warnings = append(warnings, fmt.Sprintf("invalid deletions count %q for %s: %v", parts[1], parts[2], err))
+			}
 		}
 
 		stats.Files = append(stats.Files, file)
@@ -120,15 +144,26 @@ func ParseNumstat(output string) (*DiffStats, error) {
 	}
 
 	stats.TotalFiles = len(stats.Files)
-	return stats, scanner.Err()
+	return stats, warnings, scanner.Err()
 }
 
 // GetUntrackedFiles returns stats for untracked files (additions only).
-func GetUntrackedFiles() ([]FileStat, error) {
+// Returns warnings for git errors and file read failures.
+func GetUntrackedFiles() ([]FileStat, []string, error) {
+	var warnings []string
 	cmd := exec.Command("git", "ls-files", "--others", "--exclude-standard")
 	output, err := cmd.Output()
 	if err != nil {
-		return nil, nil // No untracked files or git error
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			stderr := strings.TrimSpace(string(exitErr.Stderr))
+			if stderr != "" {
+				warnings = append(warnings, fmt.Sprintf("git ls-files: %s", stderr))
+			} else {
+				warnings = append(warnings, fmt.Sprintf("git ls-files exited with code %d", exitErr.ExitCode()))
+			}
+		}
+		// Fail-open: return empty with warning
+		return nil, warnings, nil
 	}
 
 	var files []FileStat
@@ -140,10 +175,14 @@ func GetUntrackedFiles() ([]FileStat, error) {
 			continue
 		}
 
-		lines := countLines(path)
+		lines, readErr := countLines(path)
 		file := FileStat{
 			Path:        path,
 			IsUntracked: true,
+		}
+		if readErr != nil {
+			warnings = append(warnings, fmt.Sprintf("could not read %s: %v", path, readErr))
+			// Fail-open: include file but with zero additions
 		}
 		if lines == -1 {
 			file.IsBinary = true
@@ -153,18 +192,18 @@ func GetUntrackedFiles() ([]FileStat, error) {
 		files = append(files, file)
 	}
 
-	return files, scanner.Err()
+	return files, warnings, scanner.Err()
 }
 
 // countLines counts lines in a file (for untracked files).
-// Returns -1 for binary files.
-func countLines(path string) int {
+// Returns -1 for binary files, or an error if the file cannot be read.
+func countLines(path string) (int, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return 0
+		return 0, err
 	}
 	if len(data) == 0 {
-		return 0
+		return 0, nil
 	}
 	// Check for binary: look for null bytes in first 8KB
 	checkLen := 8192
@@ -172,28 +211,30 @@ func countLines(path string) int {
 		checkLen = len(data)
 	}
 	if bytes.Contains(data[:checkLen], []byte{0}) {
-		return -1 // Binary file
+		return -1, nil // Binary file
 	}
 	// Count newlines, add 1 if file doesn't end with newline
 	count := bytes.Count(data, []byte{'\n'})
 	if data[len(data)-1] != '\n' {
 		count++
 	}
-	return count
+	return count, nil
 }
 
 // GetAllStats returns diff stats including untracked files.
-func GetAllStats(args ...string) (*DiffStats, error) {
-	stats, err := GetDiffStats(args...)
+// Aggregates warnings from all underlying operations.
+func GetAllStats(args ...string) (*DiffStats, []string, error) {
+	stats, warnings, err := GetDiffStats(args...)
 	if err != nil {
-		return nil, err
+		return nil, warnings, err
 	}
 
 	// Only include untracked for working tree diffs (no args or just "HEAD")
 	includeUntracked := len(args) == 0 || (len(args) == 1 && args[0] == "HEAD")
 
 	if includeUntracked {
-		untracked, _ := GetUntrackedFiles()
+		untracked, untrackedWarnings, _ := GetUntrackedFiles()
+		warnings = append(warnings, untrackedWarnings...)
 		for _, f := range untracked {
 			stats.Files = append(stats.Files, f)
 			stats.TotalAdd += f.Additions
@@ -201,27 +242,49 @@ func GetAllStats(args ...string) (*DiffStats, error) {
 		}
 	}
 
-	return stats, nil
+	return stats, warnings, nil
 }
 
 // GetTreeDiffStats compares two git tree SHAs using git diff-tree.
 // This is used for comparing against a baseline snapshot.
-func GetTreeDiffStats(baseTree, currentTree string) (*DiffStats, error) {
+// Returns warnings for git command failures.
+func GetTreeDiffStats(baseTree, currentTree string) (*DiffStats, []string, error) {
+	var warnings []string
+
 	// git diff-tree --numstat baseline current
 	cmd := exec.Command("git", "diff-tree", "--numstat", "-r", baseTree, currentTree)
 	output, err := cmd.Output()
 	if err != nil {
-		return &DiffStats{}, nil
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			stderr := strings.TrimSpace(string(exitErr.Stderr))
+			if stderr != "" {
+				warnings = append(warnings, fmt.Sprintf("git diff-tree: %s", stderr))
+			} else {
+				warnings = append(warnings, fmt.Sprintf("git diff-tree exited with code %d", exitErr.ExitCode()))
+			}
+		}
+		// Fail-open: return empty stats with warning
+		return &DiffStats{}, warnings, nil
 	}
 
-	stats, err := ParseNumstat(string(output))
+	stats, parseWarnings, err := ParseNumstat(string(output))
+	warnings = append(warnings, parseWarnings...)
 	if err != nil {
-		return nil, err
+		return nil, warnings, err
 	}
 
 	// Get file status (A=Added, M=Modified) for weighted scoring
 	statusCmd := exec.Command("git", "diff-tree", "-r", "--name-status", "--diff-filter=AM", baseTree, currentTree)
-	statusOutput, _ := statusCmd.Output()
+	statusOutput, statusErr := statusCmd.Output()
+	if statusErr != nil {
+		if exitErr, ok := statusErr.(*exec.ExitError); ok {
+			stderr := strings.TrimSpace(string(exitErr.Stderr))
+			if stderr != "" {
+				warnings = append(warnings, fmt.Sprintf("git diff-tree --name-status: %s", stderr))
+			}
+		}
+		// Fail-open: skip status enrichment, continue with basic stats
+	}
 
 	// Mark files as new or modified based on status
 	statusLines := make(map[string]byte)
@@ -242,7 +305,7 @@ func GetTreeDiffStats(baseTree, currentTree string) (*DiffStats, error) {
 		}
 	}
 
-	return stats, nil
+	return stats, warnings, nil
 }
 
 // CaptureCurrentTree returns the SHA of the current working tree.

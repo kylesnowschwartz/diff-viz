@@ -14,50 +14,50 @@ import (
 // Box-drawing characters for icicle rendering.
 // Based on go-pretty's BoxStyleLight / lipgloss normalBorder.
 type BoxStyle struct {
-	TopLeft      string // ┌
-	TopRight     string // ┐
-	BottomLeft   string // └
-	BottomRight  string // ┘
-	LeftSep      string // ├
-	RightSep     string // ┤
-	TopSep       string // ┬
-	BottomSep    string // ┴
-	Cross        string // ┼
-	Horizontal   string // ─
-	Vertical     string // │
+	TopLeft     string // ┌
+	TopRight    string // ┐
+	BottomLeft  string // └
+	BottomRight string // ┘
+	LeftSep     string // ├
+	RightSep    string // ┤
+	TopSep      string // ┬
+	BottomSep   string // ┴
+	Cross       string // ┼
+	Horizontal  string // ─
+	Vertical    string // │
 }
 
 // DefaultBoxStyle returns the standard light box style.
 func DefaultBoxStyle() BoxStyle {
 	return BoxStyle{
-		TopLeft:    "┌",
-		TopRight:   "┐",
-		BottomLeft: "└",
+		TopLeft:     "┌",
+		TopRight:    "┐",
+		BottomLeft:  "└",
 		BottomRight: "┘",
-		LeftSep:    "├",
-		RightSep:   "┤",
-		TopSep:     "┬",
-		BottomSep:  "┴",
-		Cross:      "┼",
-		Horizontal: "─",
-		Vertical:   "│",
+		LeftSep:     "├",
+		RightSep:    "┤",
+		TopSep:      "┬",
+		BottomSep:   "┴",
+		Cross:       "┼",
+		Horizontal:  "─",
+		Vertical:    "│",
 	}
 }
 
 // ASCIIBoxStyle returns ASCII-safe box characters.
 func ASCIIBoxStyle() BoxStyle {
 	return BoxStyle{
-		TopLeft:    "+",
-		TopRight:   "+",
-		BottomLeft: "+",
+		TopLeft:     "+",
+		TopRight:    "+",
+		BottomLeft:  "+",
 		BottomRight: "+",
-		LeftSep:    "+",
-		RightSep:   "+",
-		TopSep:     "+",
-		BottomSep:  "+",
-		Cross:      "+",
-		Horizontal: "-",
-		Vertical:   "|",
+		LeftSep:     "+",
+		RightSep:    "+",
+		TopSep:      "+",
+		BottomSep:   "+",
+		Cross:       "+",
+		Horizontal:  "-",
+		Vertical:    "|",
 	}
 }
 
@@ -137,7 +137,7 @@ func NewIcicleRenderer(w io.Writer, useColor bool) *IcicleRenderer {
 		UseColor:     useColor,
 		Width:        100, // Default width (standard terminal)
 		MaxDepth:     4,   // Default max depth (shows 4 hierarchy levels)
-		MinCellWidth: 12,   // Default min cell width
+		MinCellWidth: 12,  // Default min cell width
 		w:            w,
 		style:        style,
 	}
@@ -237,7 +237,6 @@ func (r *IcicleRenderer) buildLevels(stats *diff.DiffStats) {
 		r.levels = append(r.levels, nextLevel)
 	}
 }
-
 
 // buildTree constructs a tree from flat file paths.
 // Uses shared tree utilities, then adds icicle-specific processing.

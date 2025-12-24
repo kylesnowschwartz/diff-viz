@@ -103,7 +103,7 @@ func TestParseNumstat(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ParseNumstat(tt.input)
+			got, _, err := ParseNumstat(tt.input)
 			if err != nil {
 				t.Fatalf("ParseNumstat() error = %v", err)
 			}
@@ -135,7 +135,7 @@ func TestParseNumstat(t *testing.T) {
 func TestParseNumstat_FilePaths(t *testing.T) {
 	// Verify exact path parsing
 	input := "10\t5\tsrc/main.go\n20\t10\tpkg/util/helper.go\n"
-	got, err := ParseNumstat(input)
+	got, _, err := ParseNumstat(input)
 	if err != nil {
 		t.Fatalf("ParseNumstat() error = %v", err)
 	}
@@ -163,7 +163,7 @@ func TestParseNumstat_FilePaths(t *testing.T) {
 
 func TestParseNumstat_BinaryFileDetails(t *testing.T) {
 	input := "-\t-\timage.png\n"
-	got, err := ParseNumstat(input)
+	got, _, err := ParseNumstat(input)
 	if err != nil {
 		t.Fatalf("ParseNumstat() error = %v", err)
 	}
@@ -242,5 +242,54 @@ func TestDiffStats_ToJSON(t *testing.T) {
 	// Third file: binary file
 	if !json.Files[2].Binary {
 		t.Error("Files[2].Binary = false, want true")
+	}
+}
+
+func TestParseNumstat_Warnings(t *testing.T) {
+	tests := []struct {
+		name         string
+		input        string
+		wantWarnings int
+		wantFiles    int
+	}{
+		{
+			name:         "malformed line produces warning",
+			input:        "not\tvalid\n10\t5\tgood.go\n",
+			wantWarnings: 1,
+			wantFiles:    1,
+		},
+		{
+			name:         "invalid number produces warning",
+			input:        "abc\t5\tbad.go\n",
+			wantWarnings: 1,
+			wantFiles:    1, // still included, additions defaults to 0
+		},
+		{
+			name:         "valid input no warnings",
+			input:        "10\t5\tgood.go\n",
+			wantWarnings: 0,
+			wantFiles:    1,
+		},
+		{
+			name:         "multiple malformed lines",
+			input:        "bad\n10\t5\tgood.go\nalso bad\n",
+			wantWarnings: 2,
+			wantFiles:    1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, warnings, err := ParseNumstat(tt.input)
+			if err != nil {
+				t.Fatalf("ParseNumstat() error = %v", err)
+			}
+			if len(warnings) != tt.wantWarnings {
+				t.Errorf("warnings = %d, want %d: %v", len(warnings), tt.wantWarnings, warnings)
+			}
+			if got.TotalFiles != tt.wantFiles {
+				t.Errorf("TotalFiles = %d, want %d", got.TotalFiles, tt.wantFiles)
+			}
+		})
 	}
 }

@@ -41,17 +41,19 @@ check:
 modes:
     go run ./cmd/git-diff-tree --list-modes
 
-# Demo all modes against recent commits
+# Demo all modes (compares HEAD against root commit)
 demo:
-    @echo "=== tree (default) ==="
-    go run ./cmd/git-diff-tree HEAD~3..HEAD
-    @echo "\n=== collapsed ==="
-    go run ./cmd/git-diff-tree -m collapsed HEAD~3..HEAD
-    @echo "\n=== smart ==="
-    go run ./cmd/git-diff-tree -m smart HEAD~3..HEAD
-    @echo "\n=== topn ==="
-    go run ./cmd/git-diff-tree -m topn HEAD~3..HEAD
-    @echo "\n=== icicle ==="
-    go run ./cmd/git-diff-tree -m icicle HEAD~3..HEAD
-    @echo "\n=== brackets ==="
-    go run ./cmd/git-diff-tree -m brackets HEAD~3..HEAD
+    #!/usr/bin/env bash
+    ROOT=$(git rev-list --max-parents=0 HEAD)
+    echo "=== tree (default) ==="
+    go run ./cmd/git-diff-tree "$ROOT..HEAD"
+    echo -e "\n=== collapsed ==="
+    go run ./cmd/git-diff-tree -m collapsed "$ROOT..HEAD"
+    echo -e "\n=== smart ==="
+    go run ./cmd/git-diff-tree -m smart "$ROOT..HEAD"
+    echo -e "\n=== topn ==="
+    go run ./cmd/git-diff-tree -m topn "$ROOT..HEAD"
+    echo -e "\n=== icicle ==="
+    go run ./cmd/git-diff-tree -m icicle "$ROOT..HEAD"
+    echo -e "\n=== brackets ==="
+    go run ./cmd/git-diff-tree -m brackets "$ROOT..HEAD"

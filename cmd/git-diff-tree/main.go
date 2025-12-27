@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/kylesnowschwartz/diff-viz/config"
 	"github.com/kylesnowschwartz/diff-viz/diff"
 	"github.com/kylesnowschwartz/diff-viz/render"
 	"golang.org/x/term"
@@ -29,6 +30,8 @@ Examples:
   git-diff-tree -m smart           Compact sparkline view
   git-diff-tree --demo             Show all modes (root..HEAD)
   git-diff-tree --stats-json       Output raw diff stats as JSON
+  git-diff-tree --config cfg.json  Use config file for mode defaults
+  git-diff-tree --dump-defaults    Output default config as JSON template
 
 Modes:
 `)
@@ -50,7 +53,7 @@ func main() {
 	mode := flag.String("m", "tree", "Output mode (shorthand)")
 	modeLong := flag.String("mode", "tree", "Output mode: "+strings.Join(render.ValidModes, ", "))
 	noColor := flag.Bool("no-color", false, "Disable color output")
-	width := flag.Int("width", 100, "Output width in columns (for icicle mode)")
+	width := flag.Int("width", 100, "Output width in columns (smart, icicle, brackets)")
 	depth := flag.Int("depth", 2, "Hierarchy depth (smart: 1=top-level 2=subdir, icicle: 0=unlimited)")
 	help := flag.Bool("h", false, "Show help")
 	listModes := flag.Bool("list-modes", false, "List valid modes (for scripting)")
@@ -62,10 +65,19 @@ func main() {
 	expand := flag.Int("expand", -1, "Expansion depth for brackets mode (-1=auto, 0=inline, 1+=expand to depth)")
 	topnCount := flag.Int("count", 5, "Number of files to show in topn mode")
 	topnSort := flag.String("sort", "total", "Sort order for topn mode (total, adds, dels)")
+	configPath := flag.String("config", "", "Path to JSON config file")
+	dumpDefaults := flag.Bool("dump-defaults", false, "Output default config as JSON")
 	flag.Parse()
 
 	if *help {
 		flag.Usage()
+		os.Exit(0)
+	}
+
+	if *dumpDefaults {
+		cfg := config.DefaultConfigJSON()
+		output, _ := json.MarshalIndent(cfg, "", "  ")
+		fmt.Println(string(output))
 		os.Exit(0)
 	}
 
@@ -84,15 +96,40 @@ func main() {
 		modeExplicitlySet = true
 	}
 
+	// Load config file (if provided) - needed for demo and regular modes
+	cfg, err := config.Load(*configPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Build CLI flags struct (only for explicitly-set flags)
+	var cliFlags *config.ModeConfig
+	if flagWasSet("width") || flagWasSet("depth") || flagWasSet("expand") || flagWasSet("count") {
+		cliFlags = &config.ModeConfig{}
+		if flagWasSet("width") {
+			cliFlags.Width = width
+		}
+		if flagWasSet("depth") {
+			cliFlags.Depth = depth
+		}
+		if flagWasSet("expand") {
+			cliFlags.Expand = expand
+		}
+		if flagWasSet("count") {
+			cliFlags.N = topnCount
+		}
+	}
+
 	if *demo {
 		if modeExplicitlySet {
 			if !render.IsValidMode(selectedMode) {
 				fmt.Fprintf(os.Stderr, "unknown mode: %s (valid: %s)\n", selectedMode, strings.Join(render.ValidModes, ", "))
 				os.Exit(1)
 			}
-			runDemoSingleMode(selectedMode, !*noColor, *width, *depth, *expand, *topnCount, *topnSort)
+			runDemoSingleMode(selectedMode, !*noColor, cfg, cliFlags, *topnSort)
 		} else {
-			runDemo(!*noColor, *width, *depth, *expand, *topnCount, *topnSort)
+			runDemo(!*noColor, cfg, cliFlags, *topnSort)
 		}
 		return
 	}
@@ -112,6 +149,9 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Resolve final configuration (config already loaded above)
+	resolved := cfg.Resolve(selectedMode, cliFlags)
+
 	// Get diff stats with remaining args
 	stats, warnings, err := diff.GetAllStats(flag.Args()...)
 	if err != nil {
@@ -123,7 +163,7 @@ func main() {
 	useColor := !*noColor
 
 	// Select renderer based on mode
-	renderer := getRenderer(selectedMode, useColor, *width, *depth, *expand, *topnCount, *topnSort)
+	renderer := getRenderer(selectedMode, useColor, resolved.Width, resolved.Depth, resolved.Expand, resolved.N, *topnSort)
 	renderer.Render(stats)
 }
 
@@ -189,7 +229,7 @@ func getDemoStats() (*diff.DiffStats, error) {
 }
 
 // runDemoSingleMode shows a single visualization mode using root..HEAD diff.
-func runDemoSingleMode(mode string, useColor bool, width, depth, expand, topnCount int, topnSort string) {
+func runDemoSingleMode(mode string, useColor bool, cfg *config.Config, cliFlags *config.ModeConfig, topnSort string) {
 	stats, err := getDemoStats()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
@@ -201,13 +241,14 @@ func runDemoSingleMode(mode string, useColor bool, width, depth, expand, topnCou
 		return
 	}
 
+	resolved := cfg.Resolve(mode, cliFlags)
 	fmt.Printf("=== %s ===\n", mode)
-	renderer := getRenderer(mode, useColor, width, depth, expand, topnCount, topnSort)
+	renderer := getRenderer(mode, useColor, resolved.Width, resolved.Depth, resolved.Expand, resolved.N, topnSort)
 	renderer.Render(stats)
 }
 
 // runDemo shows all visualization modes using root..HEAD diff.
-func runDemo(useColor bool, width, depth, expand, topnCount int, topnSort string) {
+func runDemo(useColor bool, cfg *config.Config, cliFlags *config.ModeConfig, topnSort string) {
 	stats, err := getDemoStats()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
@@ -223,8 +264,9 @@ func runDemo(useColor bool, width, depth, expand, topnCount int, topnSort string
 		if i > 0 {
 			fmt.Println()
 		}
+		resolved := cfg.Resolve(mode, cliFlags)
 		fmt.Printf("=== %s ===\n", mode)
-		renderer := getRenderer(mode, useColor, width, depth, expand, topnCount, topnSort)
+		renderer := getRenderer(mode, useColor, resolved.Width, resolved.Depth, resolved.Expand, resolved.N, topnSort)
 		renderer.Render(stats)
 	}
 }
@@ -249,6 +291,7 @@ func getRenderer(mode string, useColor bool, width, depth, expand, topnCount int
 	case "smart":
 		r := render.NewSmartSparklineRenderer(os.Stdout, useColor)
 		r.MaxDepth = depth
+		r.Width = getTerminalWidth(width)
 		return r
 	case "topn":
 		r := render.NewTopNRenderer(os.Stdout, useColor, topnCount)
@@ -268,4 +311,15 @@ func getRenderer(mode string, useColor bool, width, depth, expand, topnCount int
 		// Should never reach here if isValidMode was called first
 		return render.NewTreeRenderer(os.Stdout, useColor)
 	}
+}
+
+// flagWasSet returns true if the flag was explicitly provided on command line.
+func flagWasSet(name string) bool {
+	found := false
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == name {
+			found = true
+		}
+	})
+	return found
 }

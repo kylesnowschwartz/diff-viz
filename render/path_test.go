@@ -222,3 +222,57 @@ func TestSortTopDirs_SumsMultipleItems(t *testing.T) {
 		t.Errorf("result[0] = %q, want %q (50 > 30)", result[0], "one_large")
 	}
 }
+
+func TestParseDepthPath(t *testing.T) {
+	tests := []struct {
+		name     string
+		path     string
+		depth    int
+		wantKey  string
+		wantSub  string
+		wantFile bool
+	}{
+		// Root files - always show as file regardless of depth
+		{"root file depth=1", "README.md", 1, "README.md", "README.md", true},
+		{"root file depth=2", "README.md", 2, "README.md", "README.md", true},
+		{"root file depth=3", "README.md", 3, "README.md", "README.md", true},
+
+		// Depth 1: aggregate everything under top-level
+		{"depth=1 shallow", "src/main.go", 1, "src", "src", false},
+		{"depth=1 deep", "src/lib/utils/helper.go", 1, "src", "src", false},
+
+		// Depth 2: show second level
+		{"depth=2 exact", "src/main.go", 2, "src", "main.go", true},
+		{"depth=2 deeper", "src/lib/parser.go", 2, "src", "lib", false},
+		{"depth=2 very deep", "src/lib/utils/helper.go", 2, "src", "lib", false},
+
+		// Depth 3: show third level
+		{"depth=3 shallow file", "src/main.go", 3, "src", "main.go", true},
+		{"depth=3 exact", "src/lib/parser.go", 3, "src", "parser.go", true},
+		{"depth=3 deeper", "src/lib/utils/helper.go", 3, "src", "utils", false},
+		{"depth=3 very deep", "a/b/c/d/e.go", 3, "a", "c", false},
+
+		// Depth 4: show fourth level
+		{"depth=4 shallow", "src/main.go", 4, "src", "main.go", true},
+		{"depth=4 exact", "src/lib/utils/helper.go", 4, "src", "helper.go", true},
+		{"depth=4 deeper", "a/b/c/d/e.go", 4, "a", "d", false},
+
+		// Depth 5: show fifth level
+		{"depth=5 shows file", "a/b/c/d/e.go", 5, "a", "e.go", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotKey, gotSub, gotFile := ParseDepthPath(tt.path, tt.depth)
+			if gotKey != tt.wantKey {
+				t.Errorf("groupKey = %q, want %q", gotKey, tt.wantKey)
+			}
+			if gotSub != tt.wantSub {
+				t.Errorf("subPath = %q, want %q", gotSub, tt.wantSub)
+			}
+			if gotFile != tt.wantFile {
+				t.Errorf("isFile = %v, want %v", gotFile, tt.wantFile)
+			}
+		})
+	}
+}

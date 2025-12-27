@@ -44,38 +44,42 @@ func GetTopDir(path string) string {
 // ParseDepthPath extracts grouping based on max depth.
 // Returns (groupKey, subPath, isFile).
 //
-// At depth=1 (collapsed): groups by top-level dir only
-//   - "README.md" -> ("README.md", "README.md", true)
-//   - "src/main.go" -> ("src", "src", false)
-//   - "src/lib/parser.go" -> ("src", "src", false)
+// groupKey is always the top-level directory (or filename for root files).
+// subPath is the component at the requested depth level.
+// isFile is true if subPath represents a single file rather than an aggregate.
 //
-// At depth=2 (default smart): groups by top-level, then depth-2
-//   - "README.md" -> ("README.md", "README.md", true)
-//   - "src/main.go" -> ("src", "main.go", true)
-//   - "src/lib/parser.go" -> ("src", "lib", false)
+// Examples for "src/lib/utils/helper.go":
+//   - depth=1: ("src", "src", false)       - aggregate all under src/
+//   - depth=2: ("src", "lib", false)       - aggregate all under src/lib/
+//   - depth=3: ("src", "utils", false)     - aggregate all under src/lib/utils/
+//   - depth=4: ("src", "helper.go", true)  - show individual file
+//
+// Files shallower than requested depth show as files:
+//   - depth=3, "src/main.go": ("src", "main.go", true)
 func ParseDepthPath(filePath string, maxDepth int) (groupKey, subPath string, isFile bool) {
 	parts := strings.Split(filePath, "/")
 
-	if maxDepth == 1 {
-		// Depth 1: aggregate everything under top-level dir
-		if len(parts) == 1 {
-			return parts[0], parts[0], true // root file
-		}
-		return parts[0], parts[0], false // directory aggregate
+	// Root file (no directories)
+	if len(parts) == 1 {
+		return parts[0], parts[0], true
 	}
 
-	// Depth 2+ (default behavior)
-	switch len(parts) {
-	case 1:
-		// Root file: README.md
-		return parts[0], parts[0], true
-	case 2:
-		// Depth 1 file: src/main.go
-		return parts[0], parts[1], true
-	default:
-		// Depth 2+: src/lib/parser.go -> group under "lib"
-		return parts[0], parts[1], false
+	groupKey = parts[0]
+	displayIndex := maxDepth - 1 // depth=1 → index 0, depth=2 → index 1, etc.
+
+	if displayIndex == 0 {
+		// depth=1: aggregate everything under top-level
+		return groupKey, groupKey, false
 	}
+
+	if displayIndex >= len(parts) {
+		// File is shallower than requested depth - show filename
+		return groupKey, parts[len(parts)-1], true
+	}
+
+	// File at or deeper than display depth
+	isFileAtDepth := displayIndex == len(parts)-1
+	return groupKey, parts[displayIndex], isFileAtDepth
 }
 
 // ParseDepth2Path extracts top-level dir and depth-2 grouping from a path.

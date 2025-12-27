@@ -54,7 +54,7 @@ func main() {
 	modeLong := flag.String("mode", "tree", "Output mode: "+strings.Join(render.ValidModes, ", "))
 	noColor := flag.Bool("no-color", false, "Disable color output")
 	width := flag.Int("width", 100, "Output width in columns (smart, icicle, brackets)")
-	depth := flag.Int("depth", 2, "Hierarchy depth (smart: 1=top-level 2=subdir, icicle: 0=unlimited)")
+	depth := flag.Int("depth", 2, "Hierarchy depth (smart: 1=top-level, 2+=subdir depth; icicle: 0=unlimited)")
 	help := flag.Bool("h", false, "Show help")
 	listModes := flag.Bool("list-modes", false, "List valid modes (for scripting)")
 	demo := flag.Bool("demo", false, "Show all visualization modes (compares HEAD to root commit)")

@@ -89,8 +89,26 @@ func main() {
 		os.Exit(0)
 	}
 
+	// Use -m if set, otherwise --mode
+	selectedMode := *modeLong
+	modeExplicitlySet := false
+	if *mode != "tree" {
+		selectedMode = *mode
+		modeExplicitlySet = true
+	} else if *modeLong != "tree" {
+		modeExplicitlySet = true
+	}
+
 	if *demo {
-		runDemo(!*noColor, *width, *depth)
+		if modeExplicitlySet {
+			if !isValidMode(selectedMode) {
+				fmt.Fprintf(os.Stderr, "unknown mode: %s (valid: %s)\n", selectedMode, strings.Join(validModes, ", "))
+				os.Exit(1)
+			}
+			runDemoSingleMode(selectedMode, !*noColor, *width, *depth)
+		} else {
+			runDemo(!*noColor, *width, *depth)
+		}
 		return
 	}
 
@@ -101,12 +119,6 @@ func main() {
 	if *statsJSON {
 		outputStatsJSON(*baseline, showWarnings)
 		return
-	}
-
-	// Use -m if set, otherwise --mode
-	selectedMode := *modeLong
-	if *mode != "tree" {
-		selectedMode = *mode
 	}
 
 	// Validate mode
@@ -176,18 +188,42 @@ func outputStatsJSON(baseline string, verbose bool) {
 	fmt.Println(string(output))
 }
 
-// runDemo shows all visualization modes using root..HEAD diff.
-func runDemo(useColor bool, width, depth int) {
-	// Get root commit
+// getDemoStats returns diff stats for root..HEAD (used by demo modes).
+func getDemoStats() (*diff.DiffStats, error) {
 	out, err := exec.Command("git", "rev-list", "--max-parents=0", "HEAD").Output()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: could not find root commit: %v\n", err)
-		os.Exit(1)
+		return nil, fmt.Errorf("could not find root commit: %w", err)
 	}
 	root := strings.TrimSpace(string(out))
 
-	// Get diff stats
 	stats, _, err := diff.GetDiffStats(root + "..HEAD")
+	if err != nil {
+		return nil, err
+	}
+	return stats, nil
+}
+
+// runDemoSingleMode shows a single visualization mode using root..HEAD diff.
+func runDemoSingleMode(mode string, useColor bool, width, depth int) {
+	stats, err := getDemoStats()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+
+	if stats.TotalFiles == 0 {
+		fmt.Println("No changes to display (root..HEAD is empty)")
+		return
+	}
+
+	fmt.Printf("=== %s ===\n", mode)
+	renderer := getRenderer(mode, useColor, width, depth)
+	renderer.Render(stats)
+}
+
+// runDemo shows all visualization modes using root..HEAD diff.
+func runDemo(useColor bool, width, depth int) {
+	stats, err := getDemoStats()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)

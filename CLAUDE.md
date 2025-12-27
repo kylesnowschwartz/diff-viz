@@ -9,7 +9,8 @@ just test      # Run tests
 just build     # Build binary
 just check     # Vet + build
 just demo      # See all modes in action
-git-diff-tree --demo  # Same, but built into CLI
+git-diff-tree --demo           # Show all modes (root..HEAD)
+git-diff-tree --demo -m icicle # Show single mode in demo
 ```
 
 ## Architecture

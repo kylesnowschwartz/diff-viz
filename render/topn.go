@@ -14,9 +14,19 @@ const (
 	defaultCount = 5  // Default number of files to show
 )
 
+// SortBy specifies the sorting criteria for topn mode.
+type SortBy string
+
+const (
+	SortByTotal SortBy = "total" // Sort by total changes (adds + dels)
+	SortByAdds  SortBy = "adds"  // Sort by additions only
+	SortByDels  SortBy = "dels"  // Sort by deletions only
+)
+
 // TopNRenderer shows the N files with the most changes.
 type TopNRenderer struct {
 	N        int
+	SortBy   SortBy // Sorting criteria (default: total)
 	UseColor bool
 	w        io.Writer
 }
@@ -26,23 +36,21 @@ func NewTopNRenderer(w io.Writer, useColor bool, n int) *TopNRenderer {
 	if n <= 0 {
 		n = defaultCount
 	}
-	return &TopNRenderer{N: n, UseColor: useColor, w: w}
+	return &TopNRenderer{N: n, SortBy: SortByTotal, UseColor: useColor, w: w}
 }
 
-// Render outputs the top N files by total changes.
+// Render outputs the top N files by configured sort criteria.
 func (r *TopNRenderer) Render(stats *diff.DiffStats) {
 	if stats.TotalFiles == 0 {
 		fmt.Fprintln(r.w, "No changes")
 		return
 	}
 
-	// Sort files by total changes (descending)
+	// Sort files by configured criteria (descending)
 	files := make([]diff.FileStat, len(stats.Files))
 	copy(files, stats.Files)
 	sort.Slice(files, func(i, j int) bool {
-		totalI := files[i].Additions + files[i].Deletions
-		totalJ := files[j].Additions + files[j].Deletions
-		return totalI > totalJ
+		return r.sortValue(files[i]) > r.sortValue(files[j])
 	})
 
 	// Take top N
@@ -123,12 +131,15 @@ func (r *TopNRenderer) formatBar(add, del int) string {
 	return RatioBar(add, del, filled, barWidth, block, r.color)
 }
 
-// renderSummary outputs the totals line.
+// renderSummary outputs the totals line with hidden file context.
 func (r *TopNRenderer) renderSummary(stats *diff.DiffStats, shown int) {
 	fmt.Fprintln(r.w)
 
-	// Total line (no indent for compact display)
+	hiddenCount := stats.TotalFiles - shown
+
 	var sb strings.Builder
+
+	// Always show total stats first
 	sb.WriteString(r.color(ColorAdd))
 	sb.WriteString(fmt.Sprintf("+%d", stats.TotalAdd))
 	sb.WriteString(r.color(ColorReset))
@@ -137,8 +148,8 @@ func (r *TopNRenderer) renderSummary(stats *diff.DiffStats, shown int) {
 	sb.WriteString(fmt.Sprintf("-%d", stats.TotalDel))
 	sb.WriteString(r.color(ColorReset))
 
-	// File count with omission note
-	if stats.TotalFiles > shown {
+	// File count with hidden context
+	if hiddenCount > 0 {
 		sb.WriteString(fmt.Sprintf(" (%d of %d files)", shown, stats.TotalFiles))
 	} else {
 		sb.WriteString(fmt.Sprintf(" (%d files)", stats.TotalFiles))
@@ -153,4 +164,16 @@ func (r *TopNRenderer) color(code string) string {
 		return code
 	}
 	return ""
+}
+
+// sortValue returns the value to sort by for a file.
+func (r *TopNRenderer) sortValue(f diff.FileStat) int {
+	switch r.SortBy {
+	case SortByAdds:
+		return f.Additions
+	case SortByDels:
+		return f.Deletions
+	default:
+		return f.Additions + f.Deletions
+	}
 }

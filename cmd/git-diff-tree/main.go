@@ -60,6 +60,8 @@ func main() {
 	verbose := flag.Bool("v", false, "Print warnings to stderr")
 	verboseLong := flag.Bool("verbose", false, "Print warnings to stderr")
 	expand := flag.Int("expand", -1, "Expansion depth for brackets mode (-1=auto, 0=inline, 1+=expand to depth)")
+	topnCount := flag.Int("count", 5, "Number of files to show in topn mode")
+	topnSort := flag.String("sort", "total", "Sort order for topn mode (total, adds, dels)")
 	flag.Parse()
 
 	if *help {
@@ -88,9 +90,9 @@ func main() {
 				fmt.Fprintf(os.Stderr, "unknown mode: %s (valid: %s)\n", selectedMode, strings.Join(render.ValidModes, ", "))
 				os.Exit(1)
 			}
-			runDemoSingleMode(selectedMode, !*noColor, *width, *depth, *expand)
+			runDemoSingleMode(selectedMode, !*noColor, *width, *depth, *expand, *topnCount, *topnSort)
 		} else {
-			runDemo(!*noColor, *width, *depth, *expand)
+			runDemo(!*noColor, *width, *depth, *expand, *topnCount, *topnSort)
 		}
 		return
 	}
@@ -121,7 +123,7 @@ func main() {
 	useColor := !*noColor
 
 	// Select renderer based on mode
-	renderer := getRenderer(selectedMode, useColor, *width, *depth, *expand)
+	renderer := getRenderer(selectedMode, useColor, *width, *depth, *expand, *topnCount, *topnSort)
 	renderer.Render(stats)
 }
 
@@ -187,7 +189,7 @@ func getDemoStats() (*diff.DiffStats, error) {
 }
 
 // runDemoSingleMode shows a single visualization mode using root..HEAD diff.
-func runDemoSingleMode(mode string, useColor bool, width, depth, expand int) {
+func runDemoSingleMode(mode string, useColor bool, width, depth, expand, topnCount int, topnSort string) {
 	stats, err := getDemoStats()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
@@ -200,12 +202,12 @@ func runDemoSingleMode(mode string, useColor bool, width, depth, expand int) {
 	}
 
 	fmt.Printf("=== %s ===\n", mode)
-	renderer := getRenderer(mode, useColor, width, depth, expand)
+	renderer := getRenderer(mode, useColor, width, depth, expand, topnCount, topnSort)
 	renderer.Render(stats)
 }
 
 // runDemo shows all visualization modes using root..HEAD diff.
-func runDemo(useColor bool, width, depth, expand int) {
+func runDemo(useColor bool, width, depth, expand, topnCount int, topnSort string) {
 	stats, err := getDemoStats()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
@@ -222,7 +224,7 @@ func runDemo(useColor bool, width, depth, expand int) {
 			fmt.Println()
 		}
 		fmt.Printf("=== %s ===\n", mode)
-		renderer := getRenderer(mode, useColor, width, depth, expand)
+		renderer := getRenderer(mode, useColor, width, depth, expand, topnCount, topnSort)
 		renderer.Render(stats)
 	}
 }
@@ -240,7 +242,7 @@ func getTerminalWidth(flagWidth int) int {
 	return 100 // sensible default for modern terminals
 }
 
-func getRenderer(mode string, useColor bool, width, depth, expand int) render.Renderer {
+func getRenderer(mode string, useColor bool, width, depth, expand, topnCount int, topnSort string) render.Renderer {
 	switch mode {
 	case "tree":
 		return render.NewTreeRenderer(os.Stdout, useColor)
@@ -249,7 +251,9 @@ func getRenderer(mode string, useColor bool, width, depth, expand int) render.Re
 		r.MaxDepth = depth
 		return r
 	case "topn":
-		return render.NewTopNRenderer(os.Stdout, useColor, 5)
+		r := render.NewTopNRenderer(os.Stdout, useColor, topnCount)
+		r.SortBy = render.SortBy(topnSort)
+		return r
 	case "icicle":
 		r := render.NewIcicleRenderer(os.Stdout, useColor)
 		r.Width = width

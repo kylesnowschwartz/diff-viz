@@ -7,7 +7,7 @@ var ValidModes = []string{"tree", "smart", "topn", "icicle", "brackets"}
 var ModeDescriptions = map[string]string{
 	"tree":     "Indented tree with file stats (default)",
 	"smart":    "Depth-aggregated sparkline (--depth=1 for top-level only)",
-	"topn":     "Top N files by change size (hotspots)",
+	"topn":     "Top N files by change size (--count=N, --sort=total|adds|dels)",
 	"icicle":   "Horizontal icicle chart (width = magnitude)",
 	"brackets": "Nested brackets [dir file... file...] (single-line hierarchy)",
 }

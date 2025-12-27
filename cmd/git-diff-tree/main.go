@@ -39,11 +39,6 @@ Modes:
 	return sb.String()
 }
 
-// Renderer interface for diff output.
-type Renderer interface {
-	Render(stats *diff.DiffStats)
-}
-
 func main() {
 	// Custom usage
 	flag.Usage = func() {
@@ -245,7 +240,7 @@ func getTerminalWidth(flagWidth int) int {
 	return 100 // sensible default for modern terminals
 }
 
-func getRenderer(mode string, useColor bool, width, depth, expand int) Renderer {
+func getRenderer(mode string, useColor bool, width, depth, expand int) render.Renderer {
 	switch mode {
 	case "tree":
 		return render.NewTreeRenderer(os.Stdout, useColor)

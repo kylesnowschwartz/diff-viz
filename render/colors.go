@@ -1,4 +1,3 @@
-// Package render provides diff visualization renderers.
 package render
 
 // ANSI color codes for diff visualization.

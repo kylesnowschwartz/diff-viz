@@ -6,7 +6,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/kylesnowschwartz/diff-viz/internal/diff"
+	"github.com/kylesnowschwartz/diff-viz/diff"
 )
 
 const smartBarWidth = 6 // Fixed width for sparkline bars

@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/kylesnowschwartz/diff-viz/internal/diff"
+	"github.com/kylesnowschwartz/diff-viz/diff"
 )
 
 // BuildTreeFromFiles constructs a tree from flat file paths.

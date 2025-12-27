@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/kylesnowschwartz/diff-viz/internal/diff"
+	"github.com/kylesnowschwartz/diff-viz/diff"
 )
 
 // PathSegment represents aggregated file changes at depth-2.

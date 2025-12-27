@@ -9,8 +9,8 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/kylesnowschwartz/diff-viz/internal/diff"
-	"github.com/kylesnowschwartz/diff-viz/internal/render"
+	"github.com/kylesnowschwartz/diff-viz/diff"
+	"github.com/kylesnowschwartz/diff-viz/render"
 	"golang.org/x/term"
 )
 

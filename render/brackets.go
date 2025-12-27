@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/kylesnowschwartz/diff-viz/internal/diff"
+	"github.com/kylesnowschwartz/diff-viz/diff"
 )
 
 // BracketsRenderer renders diff stats as nested brackets showing hierarchy.

@@ -14,20 +14,6 @@ import (
 	"golang.org/x/term"
 )
 
-// validModes is the single source of truth for available visualization modes.
-// Add new modes here - they'll automatically appear in help and validation.
-var validModes = []string{"tree", "collapsed", "smart", "topn", "icicle", "brackets"}
-
-// modeDescriptions provides help text for each mode.
-var modeDescriptions = map[string]string{
-	"tree":      "Indented tree with file stats (default)",
-	"collapsed": "Single-line summary per directory",
-	"smart":     "Depth-2 aggregated sparkline",
-	"topn":      "Top N files by change size (hotspots)",
-	"icicle":    "Horizontal icicle chart (width = magnitude)",
-	"brackets":  "Nested brackets [dir file█ file██] (single-line hierarchy)",
-}
-
 func usage() string {
 	var sb strings.Builder
 	sb.WriteString(`git-diff-tree - Hierarchical diff visualization
@@ -46,8 +32,8 @@ Examples:
 
 Modes:
 `)
-	for _, mode := range validModes {
-		sb.WriteString(fmt.Sprintf("  %-10s %s\n", mode, modeDescriptions[mode]))
+	for _, mode := range render.ValidModes {
+		sb.WriteString(fmt.Sprintf("  %-10s %s\n", mode, render.ModeDescriptions[mode]))
 	}
 	sb.WriteString("\nFlags:\n")
 	return sb.String()
@@ -67,7 +53,7 @@ func main() {
 
 	// Parse flags
 	mode := flag.String("m", "tree", "Output mode (shorthand)")
-	modeLong := flag.String("mode", "tree", "Output mode: "+strings.Join(validModes, ", "))
+	modeLong := flag.String("mode", "tree", "Output mode: "+strings.Join(render.ValidModes, ", "))
 	noColor := flag.Bool("no-color", false, "Disable color output")
 	width := flag.Int("width", 100, "Output width in columns (for icicle mode)")
 	depth := flag.Int("depth", 4, "Max hierarchy depth to render (for icicle mode, 0=unlimited)")
@@ -87,7 +73,7 @@ func main() {
 	}
 
 	if *listModes {
-		fmt.Println(strings.Join(validModes, " "))
+		fmt.Println(strings.Join(render.ValidModes, " "))
 		os.Exit(0)
 	}
 
@@ -103,8 +89,8 @@ func main() {
 
 	if *demo {
 		if modeExplicitlySet {
-			if !isValidMode(selectedMode) {
-				fmt.Fprintf(os.Stderr, "unknown mode: %s (valid: %s)\n", selectedMode, strings.Join(validModes, ", "))
+			if !render.IsValidMode(selectedMode) {
+				fmt.Fprintf(os.Stderr, "unknown mode: %s (valid: %s)\n", selectedMode, strings.Join(render.ValidModes, ", "))
 				os.Exit(1)
 			}
 			runDemoSingleMode(selectedMode, !*noColor, *width, *depth, *expand)
@@ -124,8 +110,8 @@ func main() {
 	}
 
 	// Validate mode
-	if !isValidMode(selectedMode) {
-		fmt.Fprintf(os.Stderr, "unknown mode: %s (valid: %s)\n", selectedMode, strings.Join(validModes, ", "))
+	if !render.IsValidMode(selectedMode) {
+		fmt.Fprintf(os.Stderr, "unknown mode: %s (valid: %s)\n", selectedMode, strings.Join(render.ValidModes, ", "))
 		os.Exit(1)
 	}
 
@@ -236,7 +222,7 @@ func runDemo(useColor bool, width, depth, expand int) {
 		return
 	}
 
-	for i, mode := range validModes {
+	for i, mode := range render.ValidModes {
 		if i > 0 {
 			fmt.Println()
 		}
@@ -244,15 +230,6 @@ func runDemo(useColor bool, width, depth, expand int) {
 		renderer := getRenderer(mode, useColor, width, depth, expand)
 		renderer.Render(stats)
 	}
-}
-
-func isValidMode(mode string) bool {
-	for _, m := range validModes {
-		if m == mode {
-			return true
-		}
-	}
-	return false
 }
 
 // getTerminalWidth returns the terminal width to use for rendering.

@@ -11,6 +11,7 @@ import (
 
 	"github.com/kylesnowschwartz/diff-viz/internal/diff"
 	"github.com/kylesnowschwartz/diff-viz/internal/render"
+	"golang.org/x/term"
 )
 
 // validModes is the single source of truth for available visualization modes.
@@ -77,6 +78,7 @@ func main() {
 	baseline := flag.String("baseline", "", "Baseline tree SHA to compare against (uses current working tree)")
 	verbose := flag.Bool("v", false, "Print warnings to stderr")
 	verboseLong := flag.Bool("verbose", false, "Print warnings to stderr")
+	expand := flag.Int("expand", -1, "Expansion depth for brackets mode (-1=auto, 0=inline, 1+=expand to depth)")
 	flag.Parse()
 
 	if *help {
@@ -105,9 +107,9 @@ func main() {
 				fmt.Fprintf(os.Stderr, "unknown mode: %s (valid: %s)\n", selectedMode, strings.Join(validModes, ", "))
 				os.Exit(1)
 			}
-			runDemoSingleMode(selectedMode, !*noColor, *width, *depth)
+			runDemoSingleMode(selectedMode, !*noColor, *width, *depth, *expand)
 		} else {
-			runDemo(!*noColor, *width, *depth)
+			runDemo(!*noColor, *width, *depth, *expand)
 		}
 		return
 	}
@@ -138,7 +140,7 @@ func main() {
 	useColor := !*noColor
 
 	// Select renderer based on mode
-	renderer := getRenderer(selectedMode, useColor, *width, *depth)
+	renderer := getRenderer(selectedMode, useColor, *width, *depth, *expand)
 	renderer.Render(stats)
 }
 
@@ -204,7 +206,7 @@ func getDemoStats() (*diff.DiffStats, error) {
 }
 
 // runDemoSingleMode shows a single visualization mode using root..HEAD diff.
-func runDemoSingleMode(mode string, useColor bool, width, depth int) {
+func runDemoSingleMode(mode string, useColor bool, width, depth, expand int) {
 	stats, err := getDemoStats()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
@@ -217,12 +219,12 @@ func runDemoSingleMode(mode string, useColor bool, width, depth int) {
 	}
 
 	fmt.Printf("=== %s ===\n", mode)
-	renderer := getRenderer(mode, useColor, width, depth)
+	renderer := getRenderer(mode, useColor, width, depth, expand)
 	renderer.Render(stats)
 }
 
 // runDemo shows all visualization modes using root..HEAD diff.
-func runDemo(useColor bool, width, depth int) {
+func runDemo(useColor bool, width, depth, expand int) {
 	stats, err := getDemoStats()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
@@ -239,7 +241,7 @@ func runDemo(useColor bool, width, depth int) {
 			fmt.Println()
 		}
 		fmt.Printf("=== %s ===\n", mode)
-		renderer := getRenderer(mode, useColor, width, depth)
+		renderer := getRenderer(mode, useColor, width, depth, expand)
 		renderer.Render(stats)
 	}
 }
@@ -253,7 +255,20 @@ func isValidMode(mode string) bool {
 	return false
 }
 
-func getRenderer(mode string, useColor bool, width, depth int) Renderer {
+// getTerminalWidth returns the terminal width to use for rendering.
+// Priority: flag value (if not default) > terminal detection > default (100).
+func getTerminalWidth(flagWidth int) int {
+	if flagWidth != 100 { // User explicitly set via flag
+		return flagWidth
+	}
+	// Try to detect terminal width
+	if width, _, err := term.GetSize(int(os.Stdout.Fd())); err == nil && width > 0 {
+		return width
+	}
+	return 100 // sensible default for modern terminals
+}
+
+func getRenderer(mode string, useColor bool, width, depth, expand int) Renderer {
 	switch mode {
 	case "tree":
 		return render.NewTreeRenderer(os.Stdout, useColor)
@@ -269,7 +284,10 @@ func getRenderer(mode string, useColor bool, width, depth int) Renderer {
 		r.MaxDepth = depth
 		return r
 	case "brackets":
-		return render.NewBracketsRenderer(os.Stdout, useColor)
+		r := render.NewBracketsRenderer(os.Stdout, useColor)
+		r.Width = getTerminalWidth(width)
+		r.ExpandDepth = expand
+		return r
 	default:
 		// Should never reach here if isValidMode was called first
 		return render.NewTreeRenderer(os.Stdout, useColor)

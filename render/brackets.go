@@ -100,7 +100,7 @@ func (r *BracketsRenderer) renderSmart(dirs []*bracketNode, rootFiles []*bracket
 	var groups []group
 	for _, node := range dirs {
 		inline := r.renderNode(node, maxVal, 0, "")
-		w := visibleWidth(inline)
+		w := VisibleWidth(inline)
 		groups = append(groups, group{
 			node:        node,
 			inline:      inline,
@@ -126,13 +126,13 @@ func (r *BracketsRenderer) renderSmart(dirs []*bracketNode, rootFiles []*bracket
 		groups = append(groups, group{
 			node:        nil,
 			inline:      inline,
-			width:       visibleWidth(inline),
+			width:       VisibleWidth(inline),
 			needsExpand: false, // root files don't expand
 		})
 	}
 
 	// Render groups with smart line packing
-	sepWidth := visibleWidth(r.Separator)
+	sepWidth := VisibleWidth(r.Separator)
 	var currentLine strings.Builder
 	currentWidth := 0
 
@@ -190,9 +190,9 @@ func (r *BracketsRenderer) calcInlineWidth(dirs []*bracketNode, rootFiles []*bra
 	}
 
 	total := 0
-	sepWidth := visibleWidth(r.Separator)
+	sepWidth := VisibleWidth(r.Separator)
 	for i, p := range parts {
-		total += visibleWidth(p)
+		total += VisibleWidth(p)
 		if i < len(parts)-1 {
 			total += sepWidth
 		}
@@ -319,14 +319,14 @@ func (r *BracketsRenderer) wrapJoin(parts []string) string {
 	}
 
 	sep := r.Separator
-	sepWidth := visibleWidth(sep)
+	sepWidth := VisibleWidth(sep)
 
 	var lines []string
 	var currentLine strings.Builder
 	currentWidth := 0
 
 	for i, part := range parts {
-		partWidth := visibleWidth(part)
+		partWidth := VisibleWidth(part)
 
 		// First part on line, or fits on current line
 		if currentWidth == 0 {
@@ -352,27 +352,6 @@ func (r *BracketsRenderer) wrapJoin(parts []string) string {
 	}
 
 	return strings.Join(lines, "\n")
-}
-
-// visibleWidth calculates display width excluding ANSI escape sequences.
-func visibleWidth(s string) int {
-	// Strip ANSI escape sequences: \033[...m
-	inEscape := false
-	width := 0
-	for _, r := range s {
-		if r == '\033' {
-			inEscape = true
-			continue
-		}
-		if inEscape {
-			if r == 'm' {
-				inEscape = false
-			}
-			continue
-		}
-		width++
-	}
-	return width
 }
 
 // bracketNode represents a node in the bracket tree.

@@ -17,16 +17,20 @@ const smartBarWidth = 10 // Fixed width for sparkline bars
 // MaxDepth controls aggregation:
 //   - 1: aggregate at top-level only (replaces collapsed mode)
 //   - 2: group by depth-2 (default)
+//
+// Width controls line wrapping (0 = no wrapping, single line).
 type SmartSparklineRenderer struct {
 	UseColor bool
 	MaxDepth int // 1=top-level only, 2=depth-2 grouping (default)
+	Width    int // Max line width before wrapping (0=no wrap)
 	w        io.Writer
 }
 
 // NewSmartSparklineRenderer creates a smart sparkline renderer.
 // Default MaxDepth is 2 for depth-2 aggregation.
+// Default Width is 0 (no wrapping - original single-line behavior).
 func NewSmartSparklineRenderer(w io.Writer, useColor bool) *SmartSparklineRenderer {
-	return &SmartSparklineRenderer{UseColor: useColor, MaxDepth: 2, w: w}
+	return &SmartSparklineRenderer{UseColor: useColor, MaxDepth: 2, Width: 0, w: w}
 }
 
 // Render outputs diff stats with configurable depth aggregation.
@@ -58,15 +62,63 @@ func (r *SmartSparklineRenderer) Render(stats *diff.DiffStats) {
 	// Sort top-level dirs by total changes
 	sortedTops := SortTopDirs(topDirs)
 
-	// Render each top-level directory
-	var topParts []string
+	// Render each top-level directory to strings
+	var groups []string
 	for _, topDir := range sortedTops {
 		segments := topDirs[topDir]
-		topParts = append(topParts, r.formatTopDir(topDir, segments, maxTotal))
+		groups = append(groups, r.formatTopDir(topDir, segments, maxTotal))
 	}
 
-	// Join top-level dirs with separator
-	fmt.Fprintln(r.w, strings.Join(topParts, Separator(r.UseColor)))
+	// Output with smart line packing
+	r.outputWithPacking(groups)
+}
+
+// outputWithPacking renders groups with optional line wrapping.
+// If Width is 0, outputs all on one line (original behavior).
+// Otherwise, packs groups onto lines respecting Width.
+func (r *SmartSparklineRenderer) outputWithPacking(groups []string) {
+	if len(groups) == 0 {
+		return
+	}
+
+	sep := Separator(r.UseColor)
+
+	// No width limit: single line output (original behavior)
+	if r.Width <= 0 {
+		fmt.Fprintln(r.w, strings.Join(groups, sep))
+		return
+	}
+
+	// Smart packing: fit as many groups per line as possible
+	sepWidth := VisibleWidth(sep)
+	var currentLine strings.Builder
+	currentWidth := 0
+
+	for i, group := range groups {
+		groupWidth := VisibleWidth(group)
+
+		if currentWidth == 0 {
+			// First group on line
+			currentLine.WriteString(group)
+			currentWidth = groupWidth
+		} else if currentWidth+sepWidth+groupWidth <= r.Width {
+			// Fits on current line
+			currentLine.WriteString(sep)
+			currentLine.WriteString(group)
+			currentWidth += sepWidth + groupWidth
+		} else {
+			// Doesn't fit - emit line and start new one
+			fmt.Fprintln(r.w, currentLine.String())
+			currentLine.Reset()
+			currentLine.WriteString(group)
+			currentWidth = groupWidth
+		}
+
+		// Flush on last group
+		if i == len(groups)-1 && currentWidth > 0 {
+			fmt.Fprintln(r.w, currentLine.String())
+		}
+	}
 }
 
 // formatTopDir formats all segments within a top-level directory.

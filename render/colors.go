@@ -27,3 +27,24 @@ func Separator(useColor bool) string {
 	}
 	return " | "
 }
+
+// VisibleWidth calculates display width excluding ANSI escape sequences.
+// Used for accurate line-width calculations with colored output.
+func VisibleWidth(s string) int {
+	inEscape := false
+	width := 0
+	for _, r := range s {
+		if r == '\033' {
+			inEscape = true
+			continue
+		}
+		if inEscape {
+			if r == 'm' {
+				inEscape = false
+			}
+			continue
+		}
+		width++
+	}
+	return width
+}

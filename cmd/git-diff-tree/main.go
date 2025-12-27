@@ -299,7 +299,7 @@ func getRenderer(mode string, useColor bool, width, depth, expand, topnCount int
 		return r
 	case "icicle":
 		r := render.NewIcicleRenderer(os.Stdout, useColor)
-		r.Width = width
+		r.Width = getTerminalWidth(width)
 		r.MaxDepth = depth
 		return r
 	case "brackets":

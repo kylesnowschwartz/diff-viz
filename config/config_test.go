@@ -145,6 +145,19 @@ func TestResolve_NilConfig(t *testing.T) {
 	if resolved.Width != DefaultWidth {
 		t.Errorf("Resolve nil config: Width got %d, want %d", resolved.Width, DefaultWidth)
 	}
+
+	// Test icicle with nil config - should get depth=4 from ModeDefaults
+	resolved = Resolve("icicle", nil)
+	if resolved.Depth != 4 {
+		t.Errorf("Resolve nil config icicle: Depth got %d, want 4 (ModeDefaults)", resolved.Depth)
+	}
+
+	// Also test calling method on nil pointer directly (like main.go does)
+	var cfg *Config = nil
+	resolved = cfg.Resolve("icicle", nil)
+	if resolved.Depth != 4 {
+		t.Errorf("nil.Resolve icicle: Depth got %d, want 4 (ModeDefaults)", resolved.Depth)
+	}
 }
 
 func TestDefaultConfig(t *testing.T) {

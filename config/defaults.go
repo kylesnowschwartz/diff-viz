@@ -14,7 +14,7 @@ const (
 // These are applied after global defaults but before config file values.
 var ModeDefaults = map[string]ModeConfig{
 	"tree":     {},                   // uses global defaults
-	"smart":    {Depth: intPtr(1)},   // top-level grouping
+	"smart":    {Depth: intPtr(3)},   // show individual files by default
 	"topn":     {N: intPtr(10)},      // show more files
 	"icicle":   {Depth: intPtr(4)},   // deeper hierarchy
 	"brackets": {Expand: intPtr(-1)}, // auto

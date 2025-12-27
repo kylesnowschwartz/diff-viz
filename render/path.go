@@ -90,7 +90,7 @@ func ParseDepth2Path(filePath string) (topDir, subPath string, isFile bool) {
 
 // GroupByDepth groups files by directory structure at the specified depth.
 // maxDepth=1: aggregate at top-level only (collapsed behavior)
-// maxDepth=2: group by top-level, then depth-2 (default smart behavior)
+// maxDepth=2: group by top-level, then depth-2
 // Returns a map of groupKey -> sorted slice of PathSegments.
 func GroupByDepth(files []diff.FileStat, maxDepth int) map[string][]PathSegment {
 	// First pass: build nested map

@@ -127,8 +127,8 @@ func TestResolve_Precedence(t *testing.T) {
 
 	// Test 4: Mode not in config - should use ModeDefaults
 	resolved = cfg.Resolve("smart", nil)
-	if resolved.Depth != 1 {
-		t.Errorf("Resolve smart: Depth got %d, want 1 (from ModeDefaults)", resolved.Depth)
+	if resolved.Depth != 3 {
+		t.Errorf("Resolve smart: Depth got %d, want 3 (from ModeDefaults)", resolved.Depth)
 	}
 }
 
@@ -184,7 +184,7 @@ func TestDefaultsForMode(t *testing.T) {
 		n     int
 	}{
 		{"tree", DefaultDepth, DefaultN},
-		{"smart", 1, DefaultN},
+		{"smart", 3, DefaultN},
 		{"topn", DefaultDepth, 10},
 		{"icicle", 4, DefaultN},
 		{"brackets", DefaultDepth, DefaultN},
@@ -219,8 +219,8 @@ func TestDefaultConfigJSON(t *testing.T) {
 	if cfg.Modes["icicle"].Depth == nil || *cfg.Modes["icicle"].Depth != 4 {
 		t.Errorf("DefaultConfigJSON Modes[icicle].Depth: got %v, want 4", cfg.Modes["icicle"].Depth)
 	}
-	if cfg.Modes["smart"].Depth == nil || *cfg.Modes["smart"].Depth != 1 {
-		t.Errorf("DefaultConfigJSON Modes[smart].Depth: got %v, want 1", cfg.Modes["smart"].Depth)
+	if cfg.Modes["smart"].Depth == nil || *cfg.Modes["smart"].Depth != 3 {
+		t.Errorf("DefaultConfigJSON Modes[smart].Depth: got %v, want 3", cfg.Modes["smart"].Depth)
 	}
 
 	// Tree mode should not be in Modes (empty config)

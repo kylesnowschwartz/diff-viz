@@ -41,15 +41,30 @@ func GetTopDir(path string) string {
 	return path[:idx]
 }
 
-// ParseDepth2Path extracts top-level dir and depth-2 grouping from a path.
-// Returns (topDir, subPath, isFile).
+// ParseDepthPath extracts grouping based on max depth.
+// Returns (groupKey, subPath, isFile).
 //
-// Examples:
+// At depth=1 (collapsed): groups by top-level dir only
+//   - "README.md" -> ("README.md", "README.md", true)
+//   - "src/main.go" -> ("src", "src", false)
+//   - "src/lib/parser.go" -> ("src", "src", false)
+//
+// At depth=2 (default smart): groups by top-level, then depth-2
 //   - "README.md" -> ("README.md", "README.md", true)
 //   - "src/main.go" -> ("src", "main.go", true)
 //   - "src/lib/parser.go" -> ("src", "lib", false)
-func ParseDepth2Path(filePath string) (topDir, subPath string, isFile bool) {
+func ParseDepthPath(filePath string, maxDepth int) (groupKey, subPath string, isFile bool) {
 	parts := strings.Split(filePath, "/")
+
+	if maxDepth == 1 {
+		// Depth 1: aggregate everything under top-level dir
+		if len(parts) == 1 {
+			return parts[0], parts[0], true // root file
+		}
+		return parts[0], parts[0], false // directory aggregate
+	}
+
+	// Depth 2+ (default behavior)
 	switch len(parts) {
 	case 1:
 		// Root file: README.md
@@ -63,9 +78,70 @@ func ParseDepth2Path(filePath string) (topDir, subPath string, isFile bool) {
 	}
 }
 
+// ParseDepth2Path extracts top-level dir and depth-2 grouping from a path.
+// Deprecated: Use ParseDepthPath with maxDepth=2 instead.
+func ParseDepth2Path(filePath string) (topDir, subPath string, isFile bool) {
+	return ParseDepthPath(filePath, 2)
+}
+
+// GroupByDepth groups files by directory structure at the specified depth.
+// maxDepth=1: aggregate at top-level only (collapsed behavior)
+// maxDepth=2: group by top-level, then depth-2 (default smart behavior)
+// Returns a map of groupKey -> sorted slice of PathSegments.
+func GroupByDepth(files []diff.FileStat, maxDepth int) map[string][]PathSegment {
+	// First pass: build nested map
+	groupMap := make(map[string]map[string]*PathSegment)
+
+	for _, f := range files {
+		groupKey, subPath, isFile := ParseDepthPath(f.Path, maxDepth)
+
+		if groupMap[groupKey] == nil {
+			groupMap[groupKey] = make(map[string]*PathSegment)
+		}
+
+		if groupMap[groupKey][subPath] == nil {
+			groupMap[groupKey][subPath] = &PathSegment{
+				TopDir:  groupKey,
+				SubPath: subPath,
+				IsFile:  isFile,
+			}
+		}
+
+		seg := groupMap[groupKey][subPath]
+		seg.Files = append(seg.Files, f.Path)
+		seg.Add += f.Additions
+		seg.Del += f.Deletions
+		seg.FileCount++
+		if f.IsUntracked {
+			seg.HasNew = true
+		}
+	}
+
+	// Convert to slices, sorted by total changes within each group
+	result := make(map[string][]PathSegment)
+	for groupKey, subGroups := range groupMap {
+		segments := make([]PathSegment, 0, len(subGroups))
+		for _, seg := range subGroups {
+			// At depth=2+, convert single-file groups to file display
+			// At depth=1, keep directory aggregates even for single files
+			if maxDepth >= 2 && seg.FileCount == 1 {
+				seg.SubPath = filepath.Base(seg.Files[0])
+				seg.IsFile = true
+			}
+			segments = append(segments, *seg)
+		}
+		// Sort by total changes descending
+		sort.Slice(segments, func(i, j int) bool {
+			return segments[i].Total() > segments[j].Total()
+		})
+		result[groupKey] = segments
+	}
+
+	return result
+}
+
 // GroupByTopDir groups files first by top-level dir, then by depth-2 path.
-// Returns a map of topDir -> sorted slice of PathSegments.
-// Single-file groups are converted to show the filename instead of dir name.
+// Deprecated: Use GroupByDepth with maxDepth=2 instead.
 func GroupByTopDir(files []diff.FileStat) map[string][]PathSegment {
 	// First pass: build nested map
 	groupMap := make(map[string]map[string]*PathSegment)

@@ -11,27 +11,39 @@ import (
 const smartBarWidth = 6 // Fixed width for sparkline bars
 
 // SmartSparklineRenderer renders diff stats with depth-aware aggregation.
-// Groups files at depth 2, shows file counts, preserves structure.
+// Groups files at configurable depth, shows file counts, preserves structure.
 // Format: src/lib(2) ████ render(1) ██ main.go ░ │ tests(1) ██████
+//
+// MaxDepth controls aggregation:
+//   - 1: aggregate at top-level only (replaces collapsed mode)
+//   - 2: group by depth-2 (default)
 type SmartSparklineRenderer struct {
 	UseColor bool
+	MaxDepth int // 1=top-level only, 2=depth-2 grouping (default)
 	w        io.Writer
 }
 
 // NewSmartSparklineRenderer creates a smart sparkline renderer.
+// Default MaxDepth is 2 for depth-2 aggregation.
 func NewSmartSparklineRenderer(w io.Writer, useColor bool) *SmartSparklineRenderer {
-	return &SmartSparklineRenderer{UseColor: useColor, w: w}
+	return &SmartSparklineRenderer{UseColor: useColor, MaxDepth: 2, w: w}
 }
 
-// Render outputs diff stats with depth-2 aggregation.
+// Render outputs diff stats with configurable depth aggregation.
 func (r *SmartSparklineRenderer) Render(stats *diff.DiffStats) {
 	if stats.TotalFiles == 0 {
 		fmt.Fprintln(r.w, "No changes")
 		return
 	}
 
-	// Group by top-level directory, then by depth-2 path
-	topDirs := GroupByTopDir(stats.Files)
+	// Ensure valid depth
+	depth := r.MaxDepth
+	if depth < 1 {
+		depth = 2
+	}
+
+	// Group by directory structure at configured depth
+	topDirs := GroupByDepth(stats.Files, depth)
 
 	// Find max total for scaling
 	maxTotal := 0

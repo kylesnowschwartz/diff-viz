@@ -51,7 +51,7 @@ func main() {
 	modeLong := flag.String("mode", "tree", "Output mode: "+strings.Join(render.ValidModes, ", "))
 	noColor := flag.Bool("no-color", false, "Disable color output")
 	width := flag.Int("width", 100, "Output width in columns (for icicle mode)")
-	depth := flag.Int("depth", 4, "Max hierarchy depth to render (for icicle mode, 0=unlimited)")
+	depth := flag.Int("depth", 2, "Hierarchy depth (smart: 1=top-level 2=subdir, icicle: 0=unlimited)")
 	help := flag.Bool("h", false, "Show help")
 	listModes := flag.Bool("list-modes", false, "List valid modes (for scripting)")
 	demo := flag.Bool("demo", false, "Show all visualization modes (compares HEAD to root commit)")
@@ -244,10 +244,10 @@ func getRenderer(mode string, useColor bool, width, depth, expand int) render.Re
 	switch mode {
 	case "tree":
 		return render.NewTreeRenderer(os.Stdout, useColor)
-	case "collapsed":
-		return render.NewCollapsedRenderer(os.Stdout, useColor)
 	case "smart":
-		return render.NewSmartSparklineRenderer(os.Stdout, useColor)
+		r := render.NewSmartSparklineRenderer(os.Stdout, useColor)
+		r.MaxDepth = depth
+		return r
 	case "topn":
 		return render.NewTopNRenderer(os.Stdout, useColor, 5)
 	case "icicle":

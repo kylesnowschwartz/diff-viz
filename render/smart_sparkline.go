@@ -8,7 +8,7 @@ import (
 	"github.com/kylesnowschwartz/diff-viz/diff"
 )
 
-const smartBarWidth = 6 // Fixed width for sparkline bars
+const smartBarWidth = 10 // Fixed width for sparkline bars
 
 // SmartSparklineRenderer renders diff stats with depth-aware aggregation.
 // Groups files at configurable depth, shows file counts, preserves structure.

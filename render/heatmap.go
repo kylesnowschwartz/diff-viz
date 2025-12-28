@@ -100,11 +100,17 @@ func (r *HeatmapRenderer) getTopLevelDirs(root *TreeNode) []*TreeNode {
 	return dirs
 }
 
-// calculateDepthStats calculates the total adds/dels at each depth level for a directory.
-// Depth 1 is the immediate children of the directory, depth 2 is grandchildren, etc.
-func (r *HeatmapRenderer) calculateDepthStats(dir *TreeNode) []heatmapCell {
+// calculateDepthStats calculates the total adds/dels at each depth level.
+// D0 is the item itself (for files) or immediate children (for dirs).
+func (r *HeatmapRenderer) calculateDepthStats(node *TreeNode) []heatmapCell {
 	stats := make([]heatmapCell, r.MaxDepth)
-	r.collectAtDepth(dir, 0, stats)
+	if !node.IsDir {
+		// Root-level file: count its changes at D0
+		stats[0].adds = node.Add
+		stats[0].dels = node.Del
+	} else {
+		r.collectAtDepth(node, 0, stats)
+	}
 	return stats
 }
 
@@ -141,9 +147,9 @@ func (r *HeatmapRenderer) renderHeader(labelWidth int) {
 	// Right-align the directory label column with spaces
 	fmt.Fprintf(r.w, "%s", strings.Repeat(" ", labelWidth+1))
 
-	// Render depth column headers (d1, d2, d3, ...)
-	for d := 1; d <= r.MaxDepth; d++ {
-		header := fmt.Sprintf("d%d", d)
+	// Render depth column headers (D0, D1, D2, ...)
+	for d := 0; d < r.MaxDepth; d++ {
+		header := fmt.Sprintf("D%d", d)
 		// Center the header in the cell width (add 2 for spacing between cells)
 		cellWidth := r.CellWidth + 2
 		padding := cellWidth - len(header)

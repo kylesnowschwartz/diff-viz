@@ -1,7 +1,7 @@
 package render
 
 // ValidModes is the canonical list of available visualization modes.
-var ValidModes = []string{"tree", "smart", "sparkline-tree", "hotpath", "icicle", "brackets", "gauge", "depth", "heatmap"}
+var ValidModes = []string{"tree", "smart", "sparkline-tree", "hotpath", "icicle", "brackets", "gauge", "depth", "heatmap", "stat"}
 
 // ModeDescriptions provides help text for each mode.
 var ModeDescriptions = map[string]string{
@@ -14,6 +14,7 @@ var ModeDescriptions = map[string]string{
 	"gauge":          "Progress gauge showing change magnitude",
 	"depth":          "Nested gauges showing change distribution by depth",
 	"heatmap":        "Heatmap matrix (rows=dirs, cols=depth levels)",
+	"stat":           "Native git diff --stat output (unchanged)",
 }
 
 // IsValidMode returns true if mode is a recognized visualization mode.

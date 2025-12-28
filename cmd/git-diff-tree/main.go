@@ -158,7 +158,7 @@ func main() {
 	useColor := !*noColor
 
 	// Select renderer based on mode
-	renderer := getRenderer(selectedMode, useColor, resolved.Width, resolved.Depth, resolved.Expand, resolved.N, *topnSort, *showFiles)
+	renderer := getRenderer(selectedMode, useColor, resolved.Width, resolved.Depth, resolved.Expand, resolved.N, *topnSort, *showFiles, flag.Args())
 	renderer.Render(stats)
 }
 
@@ -208,24 +208,25 @@ func outputStatsJSON(baseline string, verbose bool, args []string) {
 	fmt.Println(string(output))
 }
 
-// getDemoStats returns diff stats for root..HEAD (used by demo modes).
-func getDemoStats() (*diff.DiffStats, error) {
+// getDemoStats returns diff stats and git args for root..HEAD (used by demo modes).
+func getDemoStats() (*diff.DiffStats, []string, error) {
 	out, err := exec.Command("git", "rev-list", "--max-parents=0", "HEAD").Output()
 	if err != nil {
-		return nil, fmt.Errorf("could not find root commit: %w", err)
+		return nil, nil, fmt.Errorf("could not find root commit: %w", err)
 	}
 	root := strings.TrimSpace(string(out))
+	diffRange := root + "..HEAD"
 
-	stats, _, err := diff.GetDiffStats(root + "..HEAD")
+	stats, _, err := diff.GetDiffStats(diffRange)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return stats, nil
+	return stats, []string{diffRange}, nil
 }
 
 // runDemoSingleMode shows a single visualization mode using root..HEAD diff.
 func runDemoSingleMode(mode string, useColor bool, cfg *config.Config, cliFlags *config.ModeConfig, topnSort string, showFiles bool) {
-	stats, err := getDemoStats()
+	stats, args, err := getDemoStats()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
@@ -238,13 +239,13 @@ func runDemoSingleMode(mode string, useColor bool, cfg *config.Config, cliFlags 
 
 	resolved := cfg.Resolve(mode, cliFlags)
 	fmt.Printf("=== %s ===\n", mode)
-	renderer := getRenderer(mode, useColor, resolved.Width, resolved.Depth, resolved.Expand, resolved.N, topnSort, showFiles)
+	renderer := getRenderer(mode, useColor, resolved.Width, resolved.Depth, resolved.Expand, resolved.N, topnSort, showFiles, args)
 	renderer.Render(stats)
 }
 
 // runDemo shows all visualization modes using root..HEAD diff.
 func runDemo(useColor bool, cfg *config.Config, cliFlags *config.ModeConfig, topnSort string) {
-	stats, err := getDemoStats()
+	stats, args, err := getDemoStats()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
@@ -261,7 +262,7 @@ func runDemo(useColor bool, cfg *config.Config, cliFlags *config.ModeConfig, top
 		}
 		resolved := cfg.Resolve(mode, cliFlags)
 		fmt.Printf("=== %s ===\n", mode)
-		renderer := getRenderer(mode, useColor, resolved.Width, resolved.Depth, resolved.Expand, resolved.N, topnSort, false)
+		renderer := getRenderer(mode, useColor, resolved.Width, resolved.Depth, resolved.Expand, resolved.N, topnSort, false, args)
 		renderer.Render(stats)
 	}
 }
@@ -279,7 +280,7 @@ func getTerminalWidth(flagWidth int) int {
 	return 100 // sensible default for modern terminals
 }
 
-func getRenderer(mode string, useColor bool, width, depth, expand, count int, sortBy string, showFiles bool) render.Renderer {
+func getRenderer(mode string, useColor bool, width, depth, expand, count int, sortBy string, showFiles bool, args []string) render.Renderer {
 	switch mode {
 	case "tree":
 		return render.NewTreeRenderer(os.Stdout, useColor)
@@ -319,6 +320,8 @@ func getRenderer(mode string, useColor bool, width, depth, expand, count int, so
 		r := render.NewHeatmapRenderer(os.Stdout, useColor)
 		r.MaxDepth = depth
 		return r
+	case "stat":
+		return render.NewStatRenderer(os.Stdout, args)
 	default:
 		// Should never reach here if isValidMode was called first
 		return render.NewTreeRenderer(os.Stdout, useColor)

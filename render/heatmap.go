@@ -115,16 +115,19 @@ func (r *HeatmapRenderer) calculateDepthStats(node *TreeNode) []heatmapCell {
 }
 
 // collectAtDepth recursively collects file stats at each depth level.
-func (r *HeatmapRenderer) collectAtDepth(node *TreeNode, depth int, stats []heatmapCell) {
-	if depth >= r.MaxDepth {
+// nodeDepth is the depth of the current node; children are at nodeDepth+1.
+func (r *HeatmapRenderer) collectAtDepth(node *TreeNode, nodeDepth int, stats []heatmapCell) {
+	childDepth := nodeDepth + 1
+	if childDepth >= r.MaxDepth {
 		return
 	}
 	for _, child := range node.Children {
 		if !child.IsDir {
-			stats[depth].adds += child.Add
-			stats[depth].dels += child.Del
+			stats[childDepth].adds += child.Add
+			stats[childDepth].dels += child.Del
+		} else {
+			r.collectAtDepth(child, childDepth, stats)
 		}
-		r.collectAtDepth(child, depth+1, stats)
 	}
 }
 

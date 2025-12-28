@@ -33,32 +33,34 @@ func TestSmartSparkline_SingleFile(t *testing.T) {
 	}
 }
 
-func TestSmartSparkline_GroupsByTopDir(t *testing.T) {
+func TestSmartSparkline_MultiColumn(t *testing.T) {
 	var buf bytes.Buffer
 	r := NewSmartSparklineRenderer(&buf, false)
+	r.Width = 140 // Wide enough for multiple columns
 	r.MaxDepth = 2
 	r.Render(&diff.DiffStats{
 		Files: []diff.FileStat{
 			{Path: "src/main.go", Additions: 10},
 			{Path: "tests/main_test.go", Additions: 20},
+			{Path: "lib/util.go", Additions: 15},
 		},
-		TotalFiles: 2,
+		TotalFiles: 3,
 	})
 
 	got := buf.String()
-	// Should contain both top-level dirs
-	if !strings.Contains(got, "src/") {
-		t.Errorf("expected output to contain 'src/', got %q", got)
+	// Should contain all paths
+	if !strings.Contains(got, "src/main.go") {
+		t.Errorf("expected output to contain 'src/main.go', got %q", got)
 	}
-	if !strings.Contains(got, "tests/") {
-		t.Errorf("expected output to contain 'tests/', got %q", got)
+	if !strings.Contains(got, "tests/main_test.go") {
+		t.Errorf("expected output to contain 'tests/main_test.go', got %q", got)
 	}
 }
 
-func TestSmartSparkline_WidthNoWrap(t *testing.T) {
+func TestSmartSparkline_NarrowWidth(t *testing.T) {
 	var buf bytes.Buffer
 	r := NewSmartSparklineRenderer(&buf, false)
-	r.Width = 0 // No wrapping
+	r.Width = 50 // Narrow - single column
 	r.Render(&diff.DiffStats{
 		Files: []diff.FileStat{
 			{Path: "a/file1.go", Additions: 10},
@@ -68,30 +70,11 @@ func TestSmartSparkline_WidthNoWrap(t *testing.T) {
 		TotalFiles: 3,
 	})
 
-	// Should be single line (plus trailing newline)
+	// With narrow width, should have more lines (single column)
 	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
-	if len(lines) != 1 {
-		t.Errorf("expected 1 line with Width=0, got %d lines", len(lines))
-	}
-}
-
-func TestSmartSparkline_WidthWraps(t *testing.T) {
-	var buf bytes.Buffer
-	r := NewSmartSparklineRenderer(&buf, false)
-	r.Width = 30 // Very narrow - force wrapping
-	r.Render(&diff.DiffStats{
-		Files: []diff.FileStat{
-			{Path: "a/file1.go", Additions: 10},
-			{Path: "b/file2.go", Additions: 20},
-			{Path: "c/file3.go", Additions: 30},
-		},
-		TotalFiles: 3,
-	})
-
-	// With width=30, should wrap to multiple lines
-	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
-	if len(lines) < 2 {
-		t.Errorf("expected multiple lines with Width=30, got %d lines", len(lines))
+	// At least 3 file lines plus summary
+	if len(lines) < 4 {
+		t.Errorf("expected at least 4 lines with narrow width, got %d lines", len(lines))
 	}
 }
 
@@ -102,63 +85,44 @@ func TestSmartSparkline_DepthAggregation(t *testing.T) {
 		{Path: "src/main.go", Additions: 5},
 	}
 
-	// Depth 2: should show lib aggregate and main.go separately
+	// Depth 2: should show src/lib (aggregated) and src/main.go
 	var buf2 bytes.Buffer
 	r2 := NewSmartSparklineRenderer(&buf2, false)
 	r2.MaxDepth = 2
+	r2.Width = 100
 	r2.Render(&diff.DiffStats{Files: files, TotalFiles: 3})
 	output2 := buf2.String()
 
-	if !strings.Contains(output2, "lib") {
-		t.Errorf("depth=2 should show 'lib', got %q", output2)
+	if !strings.Contains(output2, "src/lib") {
+		t.Errorf("depth=2 should show 'src/lib', got %q", output2)
+	}
+	if !strings.Contains(output2, "src/main.go") {
+		t.Errorf("depth=2 should show 'src/main.go', got %q", output2)
 	}
 
-	// Depth 1: should just show "src" aggregate
+	// Depth 1: should aggregate to "src" only
 	var buf1 bytes.Buffer
 	r1 := NewSmartSparklineRenderer(&buf1, false)
 	r1.MaxDepth = 1
+	r1.Width = 100
 	r1.Render(&diff.DiffStats{Files: files, TotalFiles: 3})
 	output1 := buf1.String()
 
-	// At depth 1, everything under src is aggregated
+	// At depth 1, should show "src" with file count
 	if !strings.Contains(output1, "src") {
 		t.Errorf("depth=1 should show 'src', got %q", output1)
 	}
-	// lib shouldn't appear as a separate segment at depth 1
-	if strings.Contains(output1, "lib") {
-		t.Errorf("depth=1 should not show 'lib' as separate segment, got %q", output1)
-	}
 }
 
-func TestSmartSparkline_FileCount(t *testing.T) {
+func TestSmartSparkline_SortsByMagnitude(t *testing.T) {
 	var buf bytes.Buffer
 	r := NewSmartSparklineRenderer(&buf, false)
-	r.MaxDepth = 2
+	r.Width = 50 // Single column for easier ordering check
 	r.Render(&diff.DiffStats{
 		Files: []diff.FileStat{
-			{Path: "src/lib/a.go", Additions: 10},
-			{Path: "src/lib/b.go", Additions: 20},
-			{Path: "src/lib/c.go", Additions: 30},
-		},
-		TotalFiles: 3,
-	})
-
-	got := buf.String()
-	// Should show (3) file count for aggregated lib
-	if !strings.Contains(got, "(3)") {
-		t.Errorf("expected output to contain '(3)' file count, got %q", got)
-	}
-}
-
-func TestSmartSparkline_SortsByTotal(t *testing.T) {
-	var buf bytes.Buffer
-	r := NewSmartSparklineRenderer(&buf, false)
-	r.Width = 0 // Single line for easier testing
-	r.Render(&diff.DiffStats{
-		Files: []diff.FileStat{
-			{Path: "small/a.go", Additions: 10},
-			{Path: "large/b.go", Additions: 100},
-			{Path: "medium/c.go", Additions: 50},
+			{Path: "small.go", Additions: 10},
+			{Path: "large.go", Additions: 100},
+			{Path: "medium.go", Additions: 50},
 		},
 		TotalFiles: 3,
 	})
@@ -169,8 +133,60 @@ func TestSmartSparkline_SortsByTotal(t *testing.T) {
 	mediumIdx := strings.Index(got, "medium")
 	smallIdx := strings.Index(got, "small")
 
+	if largeIdx == -1 || mediumIdx == -1 || smallIdx == -1 {
+		t.Fatalf("missing expected paths in output: %q", got)
+	}
+
 	if largeIdx > mediumIdx || mediumIdx > smallIdx {
 		t.Errorf("expected large > medium > small ordering, got %q", got)
+	}
+}
+
+func TestSmartSparkline_DepthTruncation(t *testing.T) {
+	var buf bytes.Buffer
+	r := NewSmartSparklineRenderer(&buf, false)
+	r.MaxDepth = 2
+	r.Width = 100
+	r.Render(&diff.DiffStats{
+		Files: []diff.FileStat{
+			{Path: "cmd/git-diff-tree/main.go", Additions: 50},
+		},
+		TotalFiles: 1,
+	})
+
+	got := buf.String()
+	// At depth 2, should show "cmd/git-diff-tree" not full path
+	if !strings.Contains(got, "cmd/git-diff-tree") {
+		t.Errorf("depth=2 should show 'cmd/git-diff-tree', got %q", got)
+	}
+	// Should NOT show the full path with main.go at depth 2
+	if strings.Contains(got, "cmd/git-diff-tree/main.go") {
+		t.Errorf("depth=2 should not show full path, got %q", got)
+	}
+}
+
+func TestTruncatePathToDepth(t *testing.T) {
+	tests := []struct {
+		path  string
+		depth int
+		want  string
+	}{
+		{"main.go", 1, "main.go"},
+		{"main.go", 2, "main.go"},
+		{"src/main.go", 1, "src"},
+		{"src/main.go", 2, "src/main.go"},
+		{"src/lib/util.go", 1, "src"},
+		{"src/lib/util.go", 2, "src/lib"},
+		{"src/lib/util.go", 3, "src/lib/util.go"},
+		{"cmd/git-diff-tree/main.go", 2, "cmd/git-diff-tree"},
+		{"cmd/git-diff-tree/main.go", 3, "cmd/git-diff-tree/main.go"},
+	}
+
+	for _, tt := range tests {
+		got := truncatePathToDepth(tt.path, tt.depth)
+		if got != tt.want {
+			t.Errorf("truncatePathToDepth(%q, %d) = %q, want %q", tt.path, tt.depth, got, tt.want)
+		}
 	}
 }
 

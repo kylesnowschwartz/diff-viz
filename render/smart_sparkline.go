@@ -3,179 +3,236 @@ package render
 import (
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 
 	"github.com/kylesnowschwartz/diff-viz/diff"
 )
 
-const smartBarWidth = 10 // Fixed width for sparkline bars
+const (
+	smartBarWidth    = 8  // Slightly smaller bars for density
+	smartMinColWidth = 30 // Minimum column width (path + bar + spacing)
+)
 
-// SmartSparklineRenderer renders diff stats with depth-aware aggregation.
-// Groups files at configurable depth, shows file counts, preserves structure.
-// Format: src/lib(2) ████ render(1) ██ main.go ░ │ tests(1) ██████
-//
-// MaxDepth controls aggregation:
-//   - 1: aggregate at top-level only (replaces collapsed mode)
-//   - 2: group by depth-2 (default)
-//
-// Width controls line wrapping (0 = no wrapping, single line).
+// SmartSparklineRenderer renders diff stats as a multi-column table.
+// Files are sorted by magnitude and arranged in columns to efficiently
+// use terminal width while maintaining readability.
 type SmartSparklineRenderer struct {
 	UseColor bool
-	MaxDepth int // 1=top-level only, 2=depth-2 grouping (default)
-	Width    int // Max line width before wrapping (0=no wrap)
+	Width    int // Terminal width for column calculation
+	MaxDepth int // Aggregation depth (1=dirs only, 2+=show files)
 	w        io.Writer
 }
 
-// NewSmartSparklineRenderer creates a smart sparkline renderer.
-// Default MaxDepth is 2 for depth-2 aggregation.
-// Default Width is 0 (no wrapping - original single-line behavior).
+// NewSmartSparklineRenderer creates a multi-column smart renderer.
 func NewSmartSparklineRenderer(w io.Writer, useColor bool) *SmartSparklineRenderer {
-	return &SmartSparklineRenderer{UseColor: useColor, MaxDepth: 2, Width: 0, w: w}
+	return &SmartSparklineRenderer{
+		UseColor: useColor,
+		Width:    140, // Default to 3-column layout on wide terminals
+		MaxDepth: 2,
+		w:        w,
+	}
 }
 
-// Render outputs diff stats with configurable depth aggregation.
+// smartEntry represents a single item to display.
+type smartEntry struct {
+	path  string
+	add   int
+	del   int
+	total int
+}
+
+// Render outputs diff stats as a multi-column table.
 func (r *SmartSparklineRenderer) Render(stats *diff.DiffStats) {
 	if stats.TotalFiles == 0 {
 		fmt.Fprintln(r.w, "No changes")
 		return
 	}
 
-	// Ensure valid depth
+	// Build entries based on depth
+	entries := r.buildEntries(stats)
+	if len(entries) == 0 {
+		fmt.Fprintln(r.w, "No changes")
+		return
+	}
+
+	// Sort by total changes descending
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].total > entries[j].total
+	})
+
+	// Calculate column layout
+	maxPathLen := 0
+	for _, e := range entries {
+		if len(e.path) > maxPathLen {
+			maxPathLen = len(e.path)
+		}
+	}
+
+	// Column width: path + 2 spaces + bar + 2 spaces minimum
+	colWidth := maxPathLen + 2 + smartBarWidth + 2
+	if colWidth < smartMinColWidth {
+		colWidth = smartMinColWidth
+	}
+
+	// How many columns fit?
+	numCols := r.Width / colWidth
+	if numCols < 1 {
+		numCols = 1
+	}
+
+	// Cap path display width to leave room for bar
+	displayPathWidth := colWidth - smartBarWidth - 4
+	if displayPathWidth > maxPathLen {
+		displayPathWidth = maxPathLen
+	}
+
+	// Render in column-major order (read down, then right)
+	numRows := (len(entries) + numCols - 1) / numCols
+	barConfig := DefaultBarConfig(smartBarWidth)
+
+	for row := 0; row < numRows; row++ {
+		for col := 0; col < numCols; col++ {
+			idx := col*numRows + row
+			if idx >= len(entries) {
+				break
+			}
+
+			e := entries[idx]
+			r.renderEntry(e, displayPathWidth, barConfig, col < numCols-1)
+		}
+		fmt.Fprintln(r.w)
+	}
+
+	// Summary
+	fmt.Fprintln(r.w)
+	fmt.Fprintf(r.w, "%s+%d%s %s-%d%s in %d files\n",
+		r.color(ColorAdd), stats.TotalAdd, r.color(ColorReset),
+		r.color(ColorDel), stats.TotalDel, r.color(ColorReset),
+		stats.TotalFiles)
+}
+
+// buildEntries creates the list of items to display based on depth.
+func (r *SmartSparklineRenderer) buildEntries(stats *diff.DiffStats) []smartEntry {
 	depth := r.MaxDepth
 	if depth < 1 {
-		depth = 2
+		depth = 1
 	}
 
-	// Group by directory structure at configured depth
-	topDirs := GroupByDepth(stats.Files, depth)
+	if depth == 1 {
+		// Aggregate by top-level directory
+		return r.buildAggregatedEntries(stats)
+	}
 
-	// Find max total for scaling
-	maxTotal := 0
-	for _, segments := range topDirs {
+	// Show individual files with directory prefix
+	return r.buildFileEntries(stats, depth)
+}
+
+// buildAggregatedEntries aggregates files by top-level directory.
+func (r *SmartSparklineRenderer) buildAggregatedEntries(stats *diff.DiffStats) []smartEntry {
+	groups := GroupByDepth(stats.Files, 1)
+	entries := make([]smartEntry, 0, len(groups))
+
+	for dir, segments := range groups {
+		// Sum all segments in this group
+		var add, del int
 		for _, seg := range segments {
-			if total := seg.Total(); total > maxTotal {
-				maxTotal = total
-			}
+			add += seg.Add
+			del += seg.Del
 		}
+
+		name := dir
+		if len(segments) > 1 || (len(segments) == 1 && !segments[0].IsFile) {
+			name = fmt.Sprintf("%s(%d)", dir, len(segments))
+		}
+
+		entries = append(entries, smartEntry{
+			path:  name,
+			add:   add,
+			del:   del,
+			total: add + del,
+		})
 	}
 
-	// Sort top-level dirs by total changes
-	sortedTops := SortTopDirs(topDirs)
-
-	// Render each top-level directory to strings
-	var groups []string
-	for _, topDir := range sortedTops {
-		segments := topDirs[topDir]
-		groups = append(groups, r.formatTopDir(topDir, segments, maxTotal))
-	}
-
-	// Output with smart line packing
-	r.outputWithPacking(groups)
+	return entries
 }
 
-// outputWithPacking renders groups with optional line wrapping.
-// If Width is 0, outputs all on one line (original behavior).
-// Otherwise, packs groups onto lines respecting Width.
-func (r *SmartSparklineRenderer) outputWithPacking(groups []string) {
-	if len(groups) == 0 {
-		return
-	}
+// buildFileEntries creates entries for individual files or depth-truncated paths.
+func (r *SmartSparklineRenderer) buildFileEntries(stats *diff.DiffStats, depth int) []smartEntry {
+	// Aggregate by depth-truncated path
+	pathStats := make(map[string]*smartEntry)
 
-	sep := Separator(r.UseColor)
+	for _, f := range stats.Files {
+		truncPath := truncatePathToDepth(f.Path, depth)
 
-	// No width limit: single line output (original behavior)
-	if r.Width <= 0 {
-		fmt.Fprintln(r.w, strings.Join(groups, sep))
-		return
-	}
-
-	// Smart packing: fit as many groups per line as possible
-	sepWidth := VisibleWidth(sep)
-	var currentLine strings.Builder
-	currentWidth := 0
-
-	for i, group := range groups {
-		groupWidth := VisibleWidth(group)
-
-		if currentWidth == 0 {
-			// First group on line
-			currentLine.WriteString(group)
-			currentWidth = groupWidth
-		} else if currentWidth+sepWidth+groupWidth <= r.Width {
-			// Fits on current line
-			currentLine.WriteString(sep)
-			currentLine.WriteString(group)
-			currentWidth += sepWidth + groupWidth
+		if existing, ok := pathStats[truncPath]; ok {
+			existing.add += f.Additions
+			existing.del += f.Deletions
+			existing.total += f.Additions + f.Deletions
 		} else {
-			// Doesn't fit - emit line and start new one
-			fmt.Fprintln(r.w, currentLine.String())
-			currentLine.Reset()
-			currentLine.WriteString(group)
-			currentWidth = groupWidth
-		}
-
-		// Flush on last group
-		if i == len(groups)-1 && currentWidth > 0 {
-			fmt.Fprintln(r.w, currentLine.String())
-		}
-	}
-}
-
-// formatTopDir formats all segments within a top-level directory.
-func (r *SmartSparklineRenderer) formatTopDir(topDir string, segments []PathSegment, maxTotal int) string {
-	var parts []string
-
-	for i, seg := range segments {
-		var sb strings.Builder
-
-		// For first segment, include top-level dir prefix
-		if i == 0 && topDir != seg.SubPath {
-			sb.WriteString(r.color(ColorDir))
-			sb.WriteString(topDir)
-			sb.WriteString("/")
-			sb.WriteString(r.color(ColorReset))
-		}
-
-		// Segment name with appropriate color
-		nameColor := ColorDir
-		if seg.HasNew {
-			nameColor = ColorNew
-		}
-		if seg.IsFile {
-			nameColor = ColorReset
-			if seg.HasNew {
-				nameColor = ColorNew
+			pathStats[truncPath] = &smartEntry{
+				path:  truncPath,
+				add:   f.Additions,
+				del:   f.Deletions,
+				total: f.Additions + f.Deletions,
 			}
 		}
-
-		sb.WriteString(r.color(nameColor))
-		sb.WriteString(seg.SubPath)
-		sb.WriteString(r.color(ColorReset))
-
-		// File count indicator for aggregated groups
-		if !seg.IsFile && seg.FileCount > 1 {
-			sb.WriteString(r.color(ColorFile))
-			sb.WriteString(fmt.Sprintf("(%d)", seg.FileCount))
-			sb.WriteString(r.color(ColorReset))
-		}
-
-		sb.WriteString(" ")
-
-		// Sparkline bar
-		sb.WriteString(r.formatBar(seg.Add, seg.Del))
-
-		parts = append(parts, sb.String())
 	}
 
-	return strings.Join(parts, " ")
+	entries := make([]smartEntry, 0, len(pathStats))
+	for _, e := range pathStats {
+		entries = append(entries, *e)
+	}
+
+	return entries
 }
 
-// formatBar creates a sparkline bar with ratio-split coloring.
-func (r *SmartSparklineRenderer) formatBar(add, del int) string {
-	total := add + del
-	filled := min(filledFromTotal(total), smartBarWidth)
-	block := blockChar(total)
-	return RatioBar(add, del, filled, smartBarWidth, block, r.color)
+// truncatePathToDepth returns the path truncated to the given depth.
+// depth=1: "src" (top-level only)
+// depth=2: "src/lib" or "src/main.go"
+// depth=3: "src/lib/utils" or "src/lib/file.go"
+func truncatePathToDepth(path string, depth int) string {
+	parts := strings.Split(path, "/")
+	if depth >= len(parts) {
+		return path // Full path if shallower than depth
+	}
+	return strings.Join(parts[:depth], "/")
+}
+
+// renderEntry outputs a single entry with path and bar.
+func (r *SmartSparklineRenderer) renderEntry(e smartEntry, pathWidth int, barConfig BarConfig, addSpacer bool) {
+	// Truncate or pad path
+	path := e.path
+	if len(path) > pathWidth {
+		path = path[:pathWidth-1] + "~"
+	}
+
+	// Color based on content
+	pathColor := ColorDir
+	// Check if it looks like a file (has extension or no trailing number in parens)
+	if !isAggregatedPath(path) {
+		pathColor = ColorReset
+	}
+
+	fmt.Fprintf(r.w, "%s%-*s%s  ", r.color(pathColor), pathWidth, path, r.color(ColorReset))
+
+	// Bar
+	filled := barConfig.FilledFor(e.total)
+	block := barConfig.BlockChar(e.total)
+	fmt.Fprint(r.w, RatioBar(e.add, e.del, filled, smartBarWidth, block, r.color))
+
+	if addSpacer {
+		fmt.Fprint(r.w, "  ")
+	}
+}
+
+// isAggregatedPath returns true if the path looks like an aggregated group.
+func isAggregatedPath(path string) bool {
+	if len(path) < 3 {
+		return false
+	}
+	// Check for trailing (N) pattern
+	return path[len(path)-1] == ')' && path[len(path)-2] >= '0' && path[len(path)-2] <= '9'
 }
 
 // color returns the ANSI code if color is enabled.

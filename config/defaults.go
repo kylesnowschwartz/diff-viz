@@ -14,7 +14,7 @@ const (
 // These are applied after global defaults but before config file values.
 var ModeDefaults = map[string]ModeConfig{
 	"tree":           {},                   // uses global defaults
-	"smart":          {},                   // uses global defaults (depth 3)
+	"smart":          {Depth: intPtr(2)},   // multi-column table at depth 2
 	"sparkline-tree": {N: intPtr(10)},      // show more files in --files mode
 	"icicle":         {Depth: intPtr(4)},   // deeper hierarchy
 	"brackets":       {Expand: intPtr(-1)}, // auto

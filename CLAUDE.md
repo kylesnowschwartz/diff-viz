@@ -60,6 +60,7 @@ git diff --numstat -> ParseNumstat() -> DiffStats{Files, TotalAdd, TotalDel}
 | pflag shorthand `-m` not working | Used `flag.String("m",...)` | Use `flag.StringP("mode","m",...)` |
 | Demo ignoring flags | Demo functions hard-code values | Pass flag values through |
 | Binary not updating | Go build caching | `rm ./git-diff-tree && go build` |
+| `GroupByDepth` loses path info | Returns `(groupKey, subPath)` tuples | Use `truncatePathToDepth()` for flat views needing full truncated paths |
 
 ## Key Types
 

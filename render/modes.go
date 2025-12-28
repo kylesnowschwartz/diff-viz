@@ -6,7 +6,7 @@ var ValidModes = []string{"tree", "smart", "sparkline-tree", "icicle", "brackets
 // ModeDescriptions provides help text for each mode.
 var ModeDescriptions = map[string]string{
 	"tree":           "Indented tree with file stats (default)",
-	"smart":          "Depth-aggregated sparkline (--depth=1 collapsed, 2 subdirs)",
+	"smart":          "Multi-column table sorted by magnitude",
 	"sparkline-tree": "Rainbow sidebar tree with sparkline bars (--files for flat list)",
 	"icicle":         "Horizontal icicle chart (width = magnitude)",
 	"brackets":       "Nested brackets [dir file... file...] (single-line hierarchy)",

@@ -127,8 +127,8 @@ func TestResolve_Precedence(t *testing.T) {
 
 	// Test 4: Mode not in config - should use ModeDefaults
 	resolved = cfg.Resolve("smart", nil)
-	if resolved.Depth != 3 {
-		t.Errorf("Resolve smart: Depth got %d, want 3 (from ModeDefaults)", resolved.Depth)
+	if resolved.Depth != 2 {
+		t.Errorf("Resolve smart: Depth got %d, want 2 (from ModeDefaults)", resolved.Depth)
 	}
 }
 
@@ -184,7 +184,7 @@ func TestDefaultsForMode(t *testing.T) {
 		n     int
 	}{
 		{"tree", DefaultDepth, DefaultN},
-		{"smart", 3, DefaultN},
+		{"smart", 2, DefaultN},
 		{"sparkline-tree", DefaultDepth, 10},
 		{"icicle", 4, DefaultN},
 		{"brackets", DefaultDepth, DefaultN},
@@ -221,6 +221,9 @@ func TestDefaultConfigJSON(t *testing.T) {
 	}
 	if cfg.Modes["heatmap"].Depth == nil || *cfg.Modes["heatmap"].Depth != 4 {
 		t.Errorf("DefaultConfigJSON Modes[heatmap].Depth: got %v, want 4", cfg.Modes["heatmap"].Depth)
+	}
+	if cfg.Modes["smart"].Depth == nil || *cfg.Modes["smart"].Depth != 2 {
+		t.Errorf("DefaultConfigJSON Modes[smart].Depth: got %v, want 2", cfg.Modes["smart"].Depth)
 	}
 
 	// Tree mode should not be in Modes (empty config)

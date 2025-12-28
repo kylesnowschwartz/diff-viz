@@ -7,7 +7,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/kylesnowschwartz/diff-viz/diff"
+	"github.com/kylesnowschwartz/diff-viz/v2/diff"
 )
 
 // Box-drawing characters for icicle rendering.

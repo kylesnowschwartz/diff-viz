@@ -1,4 +1,4 @@
-module github.com/kylesnowschwartz/diff-viz
+module github.com/kylesnowschwartz/diff-viz/v2
 
 go 1.25.5
 

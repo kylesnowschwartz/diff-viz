@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/kylesnowschwartz/diff-viz/diff"
+	"github.com/kylesnowschwartz/diff-viz/v2/diff"
 )
 
 // HeatmapRenderer renders diff stats as a 2D heatmap matrix.

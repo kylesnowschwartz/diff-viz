@@ -1,6 +1,6 @@
 package render
 
-import "github.com/kylesnowschwartz/diff-viz/diff"
+import "github.com/kylesnowschwartz/diff-viz/v2/diff"
 
 // Renderer defines the interface for diff visualization renderers.
 type Renderer interface {

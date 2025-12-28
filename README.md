@@ -5,7 +5,7 @@ Hierarchical git diff visualization for terminals.
 ## Install
 
 ```bash
-go install github.com/kylesnowschwartz/diff-viz/cmd/git-diff-tree@latest
+go install github.com/kylesnowschwartz/diff-viz/v2/cmd/git-diff-tree@latest
 ```
 
 ## Usage

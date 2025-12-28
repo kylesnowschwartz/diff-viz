@@ -5,7 +5,7 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/kylesnowschwartz/diff-viz/diff"
+	"github.com/kylesnowschwartz/diff-viz/v2/diff"
 )
 
 // StatRenderer outputs native git diff --stat, unchanged.

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kylesnowschwartz/diff-viz/diff"
+	"github.com/kylesnowschwartz/diff-viz/v2/diff"
 )
 
 func TestSmartSparkline_NoChanges(t *testing.T) {

@@ -95,7 +95,7 @@ Auto-releases via GitHub Actions on push to main. Uses conventional commits:
 
 Consumers install via:
 ```bash
-go install github.com/kylesnowschwartz/diff-viz/cmd/git-diff-tree@latest
+go install github.com/kylesnowschwartz/diff-viz/v2/cmd/git-diff-tree@latest
 ```
 
 No manual tagging required. The workflow creates GitHub Releases with auto-generated notes.

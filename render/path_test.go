@@ -3,7 +3,7 @@ package render
 import (
 	"testing"
 
-	"github.com/kylesnowschwartz/diff-viz/diff"
+	"github.com/kylesnowschwartz/diff-viz/v2/diff"
 )
 
 func TestGetTopDir(t *testing.T) {

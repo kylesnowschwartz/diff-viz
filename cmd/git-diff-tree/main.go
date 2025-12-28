@@ -11,9 +11,9 @@ import (
 
 	flag "github.com/spf13/pflag"
 
-	"github.com/kylesnowschwartz/diff-viz/config"
-	"github.com/kylesnowschwartz/diff-viz/diff"
-	"github.com/kylesnowschwartz/diff-viz/render"
+	"github.com/kylesnowschwartz/diff-viz/v2/config"
+	"github.com/kylesnowschwartz/diff-viz/v2/diff"
+	"github.com/kylesnowschwartz/diff-viz/v2/render"
 	"golang.org/x/term"
 )
 

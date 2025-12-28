@@ -5,7 +5,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/kylesnowschwartz/diff-viz/diff"
+	"github.com/kylesnowschwartz/diff-viz/v2/diff"
 )
 
 // TreeNode represents a node in the file tree.

@@ -104,8 +104,8 @@ func TestResolve_Precedence(t *testing.T) {
 	if resolved.Width != 80 {
 		t.Errorf("Resolve sparkline-tree without CLI: Width got %d, want 80 (from config defaults)", resolved.Width)
 	}
-	if resolved.Depth != 2 {
-		t.Errorf("Resolve sparkline-tree without CLI: Depth got %d, want 2 (hardcoded default)", resolved.Depth)
+	if resolved.Depth != 3 {
+		t.Errorf("Resolve sparkline-tree without CLI: Depth got %d, want 3 (global default)", resolved.Depth)
 	}
 
 	// Test 2: With CLI flags - should use CLI value (n=3)
@@ -219,8 +219,8 @@ func TestDefaultConfigJSON(t *testing.T) {
 	if cfg.Modes["icicle"].Depth == nil || *cfg.Modes["icicle"].Depth != 4 {
 		t.Errorf("DefaultConfigJSON Modes[icicle].Depth: got %v, want 4", cfg.Modes["icicle"].Depth)
 	}
-	if cfg.Modes["smart"].Depth == nil || *cfg.Modes["smart"].Depth != 3 {
-		t.Errorf("DefaultConfigJSON Modes[smart].Depth: got %v, want 3", cfg.Modes["smart"].Depth)
+	if cfg.Modes["heatmap"].Depth == nil || *cfg.Modes["heatmap"].Depth != 4 {
+		t.Errorf("DefaultConfigJSON Modes[heatmap].Depth: got %v, want 4", cfg.Modes["heatmap"].Depth)
 	}
 
 	// Tree mode should not be in Modes (empty config)

@@ -4,7 +4,7 @@ package config
 // Default global values.
 const (
 	DefaultWidth  = 100
-	DefaultDepth  = 2
+	DefaultDepth  = 3
 	DefaultExpand = -1 // auto
 	DefaultN      = 5
 	DefaultMode   = "tree"
@@ -14,10 +14,11 @@ const (
 // These are applied after global defaults but before config file values.
 var ModeDefaults = map[string]ModeConfig{
 	"tree":           {},                   // uses global defaults
-	"smart":          {Depth: intPtr(3)},   // show individual files by default
+	"smart":          {},                   // uses global defaults (depth 3)
 	"sparkline-tree": {N: intPtr(10)},      // show more files in --files mode
 	"icicle":         {Depth: intPtr(4)},   // deeper hierarchy
 	"brackets":       {Expand: intPtr(-1)}, // auto
+	"heatmap":        {Depth: intPtr(4)},   // show deeper files (e.g., cmd/git-diff-tree/main.go)
 }
 
 // DefaultConfig returns the hardcoded global default configuration.

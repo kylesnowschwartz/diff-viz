@@ -3,11 +3,13 @@ package main
 
 import (
 	"encoding/json"
-	"flag"
 	"fmt"
+
 	"os"
 	"os/exec"
 	"strings"
+
+	flag "github.com/spf13/pflag"
 
 	"github.com/kylesnowschwartz/diff-viz/config"
 	"github.com/kylesnowschwartz/diff-viz/diff"
@@ -49,19 +51,17 @@ func main() {
 		flag.PrintDefaults()
 	}
 
-	// Parse flags
-	mode := flag.String("m", "tree", "Output mode (shorthand)")
-	modeLong := flag.String("mode", "tree", "Output mode: "+strings.Join(render.ValidModes, ", "))
+	// Parse flags (pflag supports interspersed flags and positional args)
+	mode := flag.StringP("mode", "m", "tree", "Output mode: "+strings.Join(render.ValidModes, ", "))
 	noColor := flag.Bool("no-color", false, "Disable color output")
 	width := flag.Int("width", 100, "Output width in columns (smart, icicle, brackets)")
 	depth := flag.Int("depth", 2, "Hierarchy depth (smart: 1=top-level, 2+=subdir depth; icicle: 0=unlimited)")
-	help := flag.Bool("h", false, "Show help")
+	help := flag.BoolP("help", "h", false, "Show help")
 	listModes := flag.Bool("list-modes", false, "List valid modes (for scripting)")
 	demo := flag.Bool("demo", false, "Show all visualization modes (compares HEAD to root commit)")
 	statsJSON := flag.Bool("stats-json", false, "Output raw diff stats as JSON (for programmatic consumption)")
 	baseline := flag.String("baseline", "", "Baseline tree SHA to compare against (uses current working tree)")
-	verbose := flag.Bool("v", false, "Print warnings to stderr")
-	verboseLong := flag.Bool("verbose", false, "Print warnings to stderr")
+	verbose := flag.BoolP("verbose", "v", false, "Print warnings to stderr")
 	expand := flag.Int("expand", -1, "Expansion depth for brackets mode (-1=auto, 0=inline, 1+=expand to depth)")
 	topnCount := flag.Int("count", 5, "Number of files to show in topn mode")
 	topnSort := flag.String("sort", "total", "Sort order for topn mode (total, adds, dels)")
@@ -86,15 +86,9 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Use -m if set, otherwise --mode
-	selectedMode := *modeLong
-	modeExplicitlySet := false
-	if *mode != "tree" {
-		selectedMode = *mode
-		modeExplicitlySet = true
-	} else if *modeLong != "tree" {
-		modeExplicitlySet = true
-	}
+	// Check if mode was explicitly set
+	selectedMode := *mode
+	modeExplicitlySet := flagWasSet("mode")
 
 	// Load config file (if provided) - needed for demo and regular modes
 	cfg, err := config.Load(*configPath)
@@ -135,7 +129,7 @@ func main() {
 	}
 
 	// Resolve verbose flag
-	showWarnings := *verbose || *verboseLong
+	showWarnings := *verbose
 
 	// Handle --stats-json mode (raw stats for programmatic consumption)
 	if *statsJSON {

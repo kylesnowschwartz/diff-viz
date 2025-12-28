@@ -24,7 +24,7 @@ internal/
 
 ## Adding a New Renderer
 
-1. Create `internal/render/yourmode.go` implementing `Renderer` interface
+1. Create `render/yourmode.go` implementing `Renderer` interface
 2. Add mode to `validModes` slice in `cmd/git-diff-tree/main.go`
 3. Add case to `getRenderer()` switch in main.go
 4. Add description to `modeDescriptions` map

@@ -99,3 +99,26 @@ go install github.com/kylesnowschwartz/diff-viz/v2/cmd/git-diff-tree@latest
 ```
 
 No manual tagging required. The workflow creates GitHub Releases with auto-generated notes.
+
+## Go Semantic Import Versioning (v2+)
+
+Go requires v2+ modules to have the major version in the module path. If releasing v2.0.0+:
+
+1. Update `go.mod` module path:
+   ```
+   module github.com/kylesnowschwartz/diff-viz/v2
+   ```
+
+2. Update all internal imports to include `/v2/`:
+   ```bash
+   find . -name "*.go" -exec sed -i '' 's|github.com/kylesnowschwartz/diff-viz/|github.com/kylesnowschwartz/diff-viz/v2/|g' {} \;
+   ```
+
+3. Update install commands in docs (README.md, CLAUDE.md)
+
+4. Commit and tag together so the tag points to a commit with the correct module path
+
+Consumers import as:
+```go
+import "github.com/kylesnowschwartz/diff-viz/v2/diff"
+```

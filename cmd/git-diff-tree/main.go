@@ -307,6 +307,20 @@ func getRenderer(mode string, useColor bool, width, depth, expand, topnCount int
 		r.Width = getTerminalWidth(width)
 		r.ExpandDepth = expand
 		return r
+	case "ratio":
+		r := render.NewRatioRenderer(os.Stdout, useColor)
+		r.Depth = depth
+		return r
+	case "gauge":
+		return render.NewGaugeRenderer(os.Stdout, useColor)
+	case "depth":
+		r := render.NewDepthRenderer(os.Stdout, useColor)
+		r.MaxDepth = depth
+		return r
+	case "heatmap":
+		r := render.NewHeatmapRenderer(os.Stdout, useColor)
+		r.MaxDepth = depth
+		return r
 	default:
 		// Should never reach here if isValidMode was called first
 		return render.NewTreeRenderer(os.Stdout, useColor)

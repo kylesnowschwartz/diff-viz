@@ -1,7 +1,7 @@
 package render
 
 // ValidModes is the canonical list of available visualization modes.
-var ValidModes = []string{"tree", "smart", "topn", "icicle", "brackets"}
+var ValidModes = []string{"tree", "smart", "topn", "icicle", "brackets", "ratio", "gauge", "depth", "heatmap"}
 
 // ModeDescriptions provides help text for each mode.
 var ModeDescriptions = map[string]string{
@@ -10,6 +10,10 @@ var ModeDescriptions = map[string]string{
 	"topn":     "Top N files by change size (--count=N, --sort=total|adds|dels)",
 	"icicle":   "Horizontal icicle chart (width = magnitude)",
 	"brackets": "Nested brackets [dir file... file...] (single-line hierarchy)",
+	"ratio":    "Dual-encoding bars (length=magnitude, color=add/del ratio)",
+	"gauge":    "Progress gauge showing change magnitude",
+	"depth":    "Nested gauges showing change distribution by depth",
+	"heatmap":  "Heatmap matrix (rows=dirs, cols=depth levels)",
 }
 
 // IsValidMode returns true if mode is a recognized visualization mode.

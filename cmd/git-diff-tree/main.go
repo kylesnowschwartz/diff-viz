@@ -295,6 +295,10 @@ func getRenderer(mode string, useColor bool, width, depth, expand, count int, so
 		r.N = count
 		r.SortBy = render.SortBy(sortBy)
 		return r
+	case "hotpath":
+		r := render.NewHotpathRenderer(os.Stdout, useColor)
+		r.MaxDepth = depth
+		return r
 	case "icicle":
 		r := render.NewIcicleRenderer(os.Stdout, useColor)
 		r.Width = getTerminalWidth(width)

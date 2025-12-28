@@ -1,13 +1,14 @@
 package render
 
 // ValidModes is the canonical list of available visualization modes.
-var ValidModes = []string{"tree", "smart", "sparkline-tree", "icicle", "brackets", "gauge", "depth", "heatmap"}
+var ValidModes = []string{"tree", "smart", "sparkline-tree", "hotpath", "icicle", "brackets", "gauge", "depth", "heatmap"}
 
 // ModeDescriptions provides help text for each mode.
 var ModeDescriptions = map[string]string{
 	"tree":           "Indented tree with file stats (default)",
 	"smart":          "Multi-column table sorted by magnitude",
 	"sparkline-tree": "Rainbow sidebar tree with sparkline bars (--files for flat list)",
+	"hotpath":        "Hot trail view (follows largest child at each level)",
 	"icicle":         "Horizontal icicle chart (width = magnitude)",
 	"brackets":       "Nested brackets [dir file... file...] (single-line hierarchy)",
 	"gauge":          "Progress gauge showing change magnitude",

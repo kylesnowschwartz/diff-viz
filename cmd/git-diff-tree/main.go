@@ -214,7 +214,8 @@ func getDemoStats() (*diff.DiffStats, []string, error) {
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not find root commit: %w", err)
 	}
-	root := strings.TrimSpace(string(out))
+	roots := strings.Split(strings.TrimSpace(string(out)), "\n")
+	root := roots[0] // Take first root if multiple (grafted history, merged repos)
 	diffRange := root + "..HEAD"
 
 	stats, _, err := diff.GetDiffStats(diffRange)

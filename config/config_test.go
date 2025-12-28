@@ -75,14 +75,14 @@ func TestResolve_Precedence(t *testing.T) {
 	// hardcoded globals < built-in ModeDefaults < config.defaults < config.modes[mode] < CLI flags
 
 	// Hardcoded defaults: width=100, depth=2, expand=-1, n=5
-	// ModeDefaults for topn: n=10
+	// ModeDefaults for sparkline-tree: n=10
 	// Config defaults: width=80
-	// Config modes[topn]: n=7
+	// Config modes[sparkline-tree]: n=7
 	// CLI flags: n=3
 
 	content := `{
 		"defaults": {"width": 80},
-		"modes": {"topn": {"n": 7}}
+		"modes": {"sparkline-tree": {"n": 7}}
 	}`
 
 	tmpDir := t.TempDir()
@@ -97,23 +97,23 @@ func TestResolve_Precedence(t *testing.T) {
 	}
 
 	// Test 1: No CLI flags - should use config mode value (n=7)
-	resolved := cfg.Resolve("topn", nil)
+	resolved := cfg.Resolve("sparkline-tree", nil)
 	if resolved.N != 7 {
-		t.Errorf("Resolve topn without CLI: N got %d, want 7", resolved.N)
+		t.Errorf("Resolve sparkline-tree without CLI: N got %d, want 7", resolved.N)
 	}
 	if resolved.Width != 80 {
-		t.Errorf("Resolve topn without CLI: Width got %d, want 80 (from config defaults)", resolved.Width)
+		t.Errorf("Resolve sparkline-tree without CLI: Width got %d, want 80 (from config defaults)", resolved.Width)
 	}
 	if resolved.Depth != 2 {
-		t.Errorf("Resolve topn without CLI: Depth got %d, want 2 (hardcoded default)", resolved.Depth)
+		t.Errorf("Resolve sparkline-tree without CLI: Depth got %d, want 2 (hardcoded default)", resolved.Depth)
 	}
 
 	// Test 2: With CLI flags - should use CLI value (n=3)
 	n := 3
 	cliFlags := &ModeConfig{N: &n}
-	resolved = cfg.Resolve("topn", cliFlags)
+	resolved = cfg.Resolve("sparkline-tree", cliFlags)
 	if resolved.N != 3 {
-		t.Errorf("Resolve topn with CLI: N got %d, want 3", resolved.N)
+		t.Errorf("Resolve sparkline-tree with CLI: N got %d, want 3", resolved.N)
 	}
 
 	// Test 3: Different mode - should use ModeDefaults for icicle (depth=4)
@@ -134,11 +134,11 @@ func TestResolve_Precedence(t *testing.T) {
 
 func TestResolve_NilConfig(t *testing.T) {
 	// Test that Resolve works with nil config (no config file)
-	resolved := Resolve("topn", nil)
+	resolved := Resolve("sparkline-tree", nil)
 
-	// Should get ModeDefaults for topn: n=10
+	// Should get ModeDefaults for sparkline-tree: n=10
 	if resolved.N != 10 {
-		t.Errorf("Resolve nil config topn: N got %d, want 10 (ModeDefaults)", resolved.N)
+		t.Errorf("Resolve nil config sparkline-tree: N got %d, want 10 (ModeDefaults)", resolved.N)
 	}
 
 	// Should get hardcoded defaults for other values
@@ -185,7 +185,7 @@ func TestDefaultsForMode(t *testing.T) {
 	}{
 		{"tree", DefaultDepth, DefaultN},
 		{"smart", 3, DefaultN},
-		{"topn", DefaultDepth, 10},
+		{"sparkline-tree", DefaultDepth, 10},
 		{"icicle", 4, DefaultN},
 		{"brackets", DefaultDepth, DefaultN},
 		{"unknown", DefaultDepth, DefaultN}, // Unknown mode uses globals
@@ -213,8 +213,8 @@ func TestDefaultConfigJSON(t *testing.T) {
 	}
 
 	// Check that mode-specific overrides are present
-	if cfg.Modes["topn"].N == nil || *cfg.Modes["topn"].N != 10 {
-		t.Errorf("DefaultConfigJSON Modes[topn].N: got %v, want 10", cfg.Modes["topn"].N)
+	if cfg.Modes["sparkline-tree"].N == nil || *cfg.Modes["sparkline-tree"].N != 10 {
+		t.Errorf("DefaultConfigJSON Modes[sparkline-tree].N: got %v, want 10", cfg.Modes["sparkline-tree"].N)
 	}
 	if cfg.Modes["icicle"].Depth == nil || *cfg.Modes["icicle"].Depth != 4 {
 		t.Errorf("DefaultConfigJSON Modes[icicle].Depth: got %v, want 4", cfg.Modes["icicle"].Depth)

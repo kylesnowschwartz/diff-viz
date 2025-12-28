@@ -16,18 +16,50 @@ git-diff-tree --demo -m icicle # Show single mode in demo
 ## Architecture
 
 ```
-cmd/git-diff-tree/    CLI entry point
-internal/
-  diff/               Git diff parsing (git diff-tree, git write-tree)
-  render/             Visualization renderers (one per mode)
+cmd/git-diff-tree/    CLI entry point, flag parsing, renderer dispatch
+config/               Mode defaults, config file handling
+diff/                 Git diff parsing (numstat, rename resolution)
+render/               Visualization renderers (one per mode)
 ```
 
 ## Adding a New Renderer
 
 1. Create `render/yourmode.go` implementing `Renderer` interface
-2. Add mode to `validModes` slice in `cmd/git-diff-tree/main.go`
-3. Add case to `getRenderer()` switch in main.go
-4. Add description to `modeDescriptions` map
+2. Add to `ValidModes` slice in `render/modes.go`
+3. Add description to `ModeDescriptions` map in `render/modes.go`
+4. Add case to `getRenderer()` switch in `cmd/git-diff-tree/main.go`
+5. (Optional) Add `ModeDefaults` entry in `config/defaults.go`
+
+## Shared Utilities
+
+Reuse these instead of reimplementing:
+- `render/bar.go` - `RatioBar()`, `BarConfig` for sparkline bars
+- `render/colors.go` - ANSI constants (`ColorAdd`, `ColorDel`, `ColorDir`, etc.)
+- `render/path.go` - `GroupByDepth()`, `ParseDepthPath()`, `SortTopDirs()`
+- `render/tree_builder.go` - `BuildTreeFromFiles()`, `CalcTotals()`
+
+## Config Resolution
+
+Precedence (lowest to highest): hardcoded defaults -> `ModeDefaults` -> config file -> CLI flags
+
+## Data Flow
+
+```
+git diff --numstat -> ParseNumstat() -> DiffStats{Files, TotalAdd, TotalDel}
+                                              |
+                              GroupByDepth() / BuildTreeFromFiles()
+                                              |
+                              Renderer.Render() -> stdout
+```
+
+## Common Gotchas
+
+| Issue | Cause | Fix |
+|-------|-------|-----|
+| Positional args ignored | Function doesn't pass `flag.Args()` | Pass args through explicitly |
+| pflag shorthand `-m` not working | Used `flag.String("m",...)` | Use `flag.StringP("mode","m",...)` |
+| Demo ignoring flags | Demo functions hard-code values | Pass flag values through |
+| Binary not updating | Go build caching | `rm ./git-diff-tree && go build` |
 
 ## Key Types
 

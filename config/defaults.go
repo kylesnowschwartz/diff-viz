@@ -13,11 +13,11 @@ const (
 // ModeDefaults provides optimized defaults for each render mode.
 // These are applied after global defaults but before config file values.
 var ModeDefaults = map[string]ModeConfig{
-	"tree":     {},                   // uses global defaults
-	"smart":    {Depth: intPtr(3)},   // show individual files by default
-	"topn":     {N: intPtr(10)},      // show more files
-	"icicle":   {Depth: intPtr(4)},   // deeper hierarchy
-	"brackets": {Expand: intPtr(-1)}, // auto
+	"tree":           {},                   // uses global defaults
+	"smart":          {Depth: intPtr(3)},   // show individual files by default
+	"sparkline-tree": {N: intPtr(10)},      // show more files in --files mode
+	"icicle":         {Depth: intPtr(4)},   // deeper hierarchy
+	"brackets":       {Expand: intPtr(-1)}, // auto
 }
 
 // DefaultConfig returns the hardcoded global default configuration.

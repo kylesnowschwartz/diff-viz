@@ -63,8 +63,9 @@ func main() {
 	baseline := flag.String("baseline", "", "Baseline tree SHA to compare against (uses current working tree)")
 	verbose := flag.BoolP("verbose", "v", false, "Print warnings to stderr")
 	expand := flag.Int("expand", -1, "Expansion depth for brackets mode (-1=auto, 0=inline, 1+=expand to depth)")
-	topnCount := flag.Int("count", 5, "Number of files to show in topn mode")
-	topnSort := flag.String("sort", "total", "Sort order for topn mode (total, adds, dels)")
+	topnCount := flag.Int("count", 10, "Number of files to show (sparkline-tree --files)")
+	topnSort := flag.String("sort", "total", "Sort order (sparkline-tree --files): total, adds, dels")
+	showFiles := flag.Bool("files", false, "Show flat file list instead of tree (sparkline-tree)")
 	configPath := flag.String("config", "", "Path to JSON config file")
 	dumpDefaults := flag.Bool("dump-defaults", false, "Output default config as JSON")
 	flag.Parse()
@@ -121,7 +122,7 @@ func main() {
 				fmt.Fprintf(os.Stderr, "unknown mode: %s (valid: %s)\n", selectedMode, strings.Join(render.ValidModes, ", "))
 				os.Exit(1)
 			}
-			runDemoSingleMode(selectedMode, !*noColor, cfg, cliFlags, *topnSort)
+			runDemoSingleMode(selectedMode, !*noColor, cfg, cliFlags, *topnSort, *showFiles)
 		} else {
 			runDemo(!*noColor, cfg, cliFlags, *topnSort)
 		}
@@ -133,7 +134,7 @@ func main() {
 
 	// Handle --stats-json mode (raw stats for programmatic consumption)
 	if *statsJSON {
-		outputStatsJSON(*baseline, showWarnings)
+		outputStatsJSON(*baseline, showWarnings, flag.Args())
 		return
 	}
 
@@ -157,7 +158,7 @@ func main() {
 	useColor := !*noColor
 
 	// Select renderer based on mode
-	renderer := getRenderer(selectedMode, useColor, resolved.Width, resolved.Depth, resolved.Expand, resolved.N, *topnSort)
+	renderer := getRenderer(selectedMode, useColor, resolved.Width, resolved.Depth, resolved.Expand, resolved.N, *topnSort, *showFiles)
 	renderer.Render(stats)
 }
 
@@ -174,7 +175,7 @@ func printWarnings(warnings []string, verbose bool) {
 // outputStatsJSON outputs raw diff stats as JSON.
 // This provides a stable interface for programmatic consumers
 // without requiring Go import coupling.
-func outputStatsJSON(baseline string, verbose bool) {
+func outputStatsJSON(baseline string, verbose bool, args []string) {
 	var stats *diff.DiffStats
 	var warnings []string
 	var err error
@@ -191,7 +192,7 @@ func outputStatsJSON(baseline string, verbose bool) {
 			os.Exit(1)
 		}
 	} else {
-		stats, warnings, err = diff.GetAllStats()
+		stats, warnings, err = diff.GetAllStats(args...)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			os.Exit(1)
@@ -223,7 +224,7 @@ func getDemoStats() (*diff.DiffStats, error) {
 }
 
 // runDemoSingleMode shows a single visualization mode using root..HEAD diff.
-func runDemoSingleMode(mode string, useColor bool, cfg *config.Config, cliFlags *config.ModeConfig, topnSort string) {
+func runDemoSingleMode(mode string, useColor bool, cfg *config.Config, cliFlags *config.ModeConfig, topnSort string, showFiles bool) {
 	stats, err := getDemoStats()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
@@ -237,7 +238,7 @@ func runDemoSingleMode(mode string, useColor bool, cfg *config.Config, cliFlags 
 
 	resolved := cfg.Resolve(mode, cliFlags)
 	fmt.Printf("=== %s ===\n", mode)
-	renderer := getRenderer(mode, useColor, resolved.Width, resolved.Depth, resolved.Expand, resolved.N, topnSort)
+	renderer := getRenderer(mode, useColor, resolved.Width, resolved.Depth, resolved.Expand, resolved.N, topnSort, showFiles)
 	renderer.Render(stats)
 }
 
@@ -260,7 +261,7 @@ func runDemo(useColor bool, cfg *config.Config, cliFlags *config.ModeConfig, top
 		}
 		resolved := cfg.Resolve(mode, cliFlags)
 		fmt.Printf("=== %s ===\n", mode)
-		renderer := getRenderer(mode, useColor, resolved.Width, resolved.Depth, resolved.Expand, resolved.N, topnSort)
+		renderer := getRenderer(mode, useColor, resolved.Width, resolved.Depth, resolved.Expand, resolved.N, topnSort, false)
 		renderer.Render(stats)
 	}
 }
@@ -278,7 +279,7 @@ func getTerminalWidth(flagWidth int) int {
 	return 100 // sensible default for modern terminals
 }
 
-func getRenderer(mode string, useColor bool, width, depth, expand, topnCount int, topnSort string) render.Renderer {
+func getRenderer(mode string, useColor bool, width, depth, expand, count int, sortBy string, showFiles bool) render.Renderer {
 	switch mode {
 	case "tree":
 		return render.NewTreeRenderer(os.Stdout, useColor)
@@ -287,9 +288,12 @@ func getRenderer(mode string, useColor bool, width, depth, expand, topnCount int
 		r.MaxDepth = depth
 		r.Width = getTerminalWidth(width)
 		return r
-	case "topn":
-		r := render.NewTopNRenderer(os.Stdout, useColor, topnCount)
-		r.SortBy = render.SortBy(topnSort)
+	case "sparkline-tree":
+		r := render.NewSparklineTreeRenderer(os.Stdout, useColor)
+		r.MaxDepth = depth
+		r.ShowFiles = showFiles
+		r.N = count
+		r.SortBy = render.SortBy(sortBy)
 		return r
 	case "icicle":
 		r := render.NewIcicleRenderer(os.Stdout, useColor)
@@ -300,10 +304,6 @@ func getRenderer(mode string, useColor bool, width, depth, expand, topnCount int
 		r := render.NewBracketsRenderer(os.Stdout, useColor)
 		r.Width = getTerminalWidth(width)
 		r.ExpandDepth = expand
-		return r
-	case "ratio":
-		r := render.NewRatioRenderer(os.Stdout, useColor)
-		r.Depth = depth
 		return r
 	case "gauge":
 		return render.NewGaugeRenderer(os.Stdout, useColor)

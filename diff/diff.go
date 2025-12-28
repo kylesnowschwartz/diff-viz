@@ -121,7 +121,7 @@ func ParseNumstat(output string) (*DiffStats, []string, error) {
 			continue
 		}
 
-		file := FileStat{Path: parts[2]}
+		file := FileStat{Path: resolveRenamePath(parts[2])}
 
 		if parts[0] == "-" {
 			// Binary file
@@ -306,6 +306,47 @@ func GetTreeDiffStats(baseTree, currentTree string) (*DiffStats, []string, error
 	}
 
 	return stats, warnings, nil
+}
+
+// resolveRenamePath extracts the destination path from git rename syntax.
+// Git shows renames as "{old => new}" which can appear anywhere in the path.
+// Examples:
+//   - "{internal/render => render}/bar.go" → "render/bar.go"
+//   - "{old.go => new.go}" → "new.go"
+//   - "regular/path.go" → "regular/path.go" (unchanged)
+func resolveRenamePath(path string) string {
+	// Fast path: no rename syntax
+	if !strings.Contains(path, " => ") {
+		return path
+	}
+
+	// Find and replace each {old => new} with new
+	result := path
+	for {
+		start := strings.Index(result, "{")
+		if start == -1 {
+			break
+		}
+		end := strings.Index(result[start:], "}")
+		if end == -1 {
+			break
+		}
+		end += start
+
+		// Extract the part between braces
+		braceContent := result[start+1 : end]
+		arrowIdx := strings.Index(braceContent, " => ")
+		if arrowIdx == -1 {
+			// Not a rename, skip this brace pair
+			break
+		}
+
+		// Extract destination (after " => ")
+		dest := braceContent[arrowIdx+4:]
+		result = result[:start] + dest + result[end+1:]
+	}
+
+	return result
 }
 
 // CaptureCurrentTree returns the SHA of the current working tree.

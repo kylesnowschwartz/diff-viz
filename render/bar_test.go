@@ -8,22 +8,27 @@ import (
 func TestBarConfig_FilledFor(t *testing.T) {
 	cfg := DefaultBarConfig(10)
 
+	// Thresholds: 800→16, 600→15, 500→14, 400→13, 350→12, 300→11,
+	//             250→10, 200→9, 150→8, 100→7, 75→6, 50→5, 30→4, 15→3, 5→2, 0→1
+	// With width=10, values capped at 10
 	tests := []struct {
 		total int
 		want  int
 	}{
 		{0, 1},  // minimum 1 block
-		{14, 1}, // below 15 threshold
-		{15, 2}, // at threshold
-		{29, 2}, // below next
-		{30, 3},
-		{50, 4},
-		{75, 5},
-		{100, 6},
-		{150, 7},
-		{200, 8},
-		{300, 9},
-		{400, 10},  // max
+		{4, 1},  // below 5 threshold
+		{5, 2},  // at threshold
+		{14, 2}, // below 15
+		{15, 3}, // at threshold
+		{29, 3}, // below 30
+		{30, 4},
+		{50, 5},
+		{75, 6},
+		{100, 7},
+		{150, 8},
+		{200, 9},
+		{250, 10},  // capped at width
+		{400, 10},  // capped at width
 		{1000, 10}, // capped at width
 	}
 

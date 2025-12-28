@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	sparklineBarWidth     = 10 // Width of sparkline bar
+	sparklineBarWidth     = 16 // Width of sparkline bar
 	sparklineDefaultDepth = 2  // Default aggregation depth
 	sparklineDefaultN     = 10 // Default file limit for --files mode
 )

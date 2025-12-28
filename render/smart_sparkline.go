@@ -10,8 +10,9 @@ import (
 )
 
 const (
-	smartBarWidth    = 8  // Slightly smaller bars for density
-	smartMinColWidth = 30 // Minimum column width (path + bar + spacing)
+	smartBarWidth    = 16 // Wide bars for good resolution with whole blocks
+	smartMinColWidth = 40 // Minimum column width (path + bar + spacing)
+	smartPathWidth   = 22 // Fixed width for paths (middle-truncated if needed)
 )
 
 // SmartSparklineRenderer renders diff stats as a multi-column table.
@@ -56,35 +57,18 @@ func (r *SmartSparklineRenderer) Render(stats *diff.DiffStats) {
 		return
 	}
 
-	// Sort by total changes descending
+	// Sort by path (alphabetical, like git diff --stat)
 	sort.Slice(entries, func(i, j int) bool {
-		return entries[i].total > entries[j].total
+		return entries[i].path < entries[j].path
 	})
 
-	// Calculate column layout
-	maxPathLen := 0
-	for _, e := range entries {
-		if len(e.path) > maxPathLen {
-			maxPathLen = len(e.path)
-		}
-	}
-
-	// Column width: path + 2 spaces + bar + 2 spaces minimum
-	colWidth := maxPathLen + 2 + smartBarWidth + 2
-	if colWidth < smartMinColWidth {
-		colWidth = smartMinColWidth
-	}
+	// Calculate column layout with fixed path width
+	colWidth := smartPathWidth + 2 + smartBarWidth + 2
 
 	// How many columns fit?
 	numCols := r.Width / colWidth
 	if numCols < 1 {
 		numCols = 1
-	}
-
-	// Cap path display width to leave room for bar
-	displayPathWidth := colWidth - smartBarWidth - 4
-	if displayPathWidth > maxPathLen {
-		displayPathWidth = maxPathLen
 	}
 
 	// Render in column-major order (read down, then right)
@@ -99,7 +83,7 @@ func (r *SmartSparklineRenderer) Render(stats *diff.DiffStats) {
 			}
 
 			e := entries[idx]
-			r.renderEntry(e, displayPathWidth, barConfig, col < numCols-1)
+			r.renderEntry(e, smartPathWidth, barConfig, col < numCols-1)
 		}
 		fmt.Fprintln(r.w)
 	}
@@ -187,6 +171,23 @@ func (r *SmartSparklineRenderer) buildFileEntries(stats *diff.DiffStats, depth i
 	return entries
 }
 
+// middleTruncate truncates a string in the middle if it exceeds maxLen.
+// "render/smart_sparkline_test.go" with maxLen=20 -> "render/s...test.go"
+func middleTruncate(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	if maxLen < 5 {
+		return s[:maxLen] // Too short for ellipsis
+	}
+	// Keep more of the end (file name) than the start (directory)
+	ellipsis := "..."
+	available := maxLen - len(ellipsis)
+	startLen := available / 3
+	endLen := available - startLen
+	return s[:startLen] + ellipsis + s[len(s)-endLen:]
+}
+
 // truncatePathToDepth returns the path truncated to the given depth.
 // depth=1: "src" (top-level only)
 // depth=2: "src/lib" or "src/main.go"
@@ -201,11 +202,8 @@ func truncatePathToDepth(path string, depth int) string {
 
 // renderEntry outputs a single entry with path and bar.
 func (r *SmartSparklineRenderer) renderEntry(e smartEntry, pathWidth int, barConfig BarConfig, addSpacer bool) {
-	// Truncate or pad path
-	path := e.path
-	if len(path) > pathWidth {
-		path = path[:pathWidth-1] + "~"
-	}
+	// Middle-truncate path if needed (keeps start and end visible)
+	path := middleTruncate(e.path, pathWidth)
 
 	// Color based on content
 	pathColor := ColorDir
@@ -216,7 +214,7 @@ func (r *SmartSparklineRenderer) renderEntry(e smartEntry, pathWidth int, barCon
 
 	fmt.Fprintf(r.w, "%s%-*s%s  ", r.color(pathColor), pathWidth, path, r.color(ColorReset))
 
-	// Bar
+	// Bar with linear thresholds (tuned for typical PR sizes)
 	filled := barConfig.FilledFor(e.total)
 	block := barConfig.BlockChar(e.total)
 	fmt.Fprint(r.w, RatioBar(e.add, e.del, filled, smartBarWidth, block, r.color))

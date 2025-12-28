@@ -1,6 +1,8 @@
 package render
 
-import "strings"
+import (
+	"strings"
+)
 
 // Block characters for bar rendering.
 const (
@@ -23,10 +25,11 @@ type CharLevel struct {
 }
 
 // DefaultThresholds maps total changes to bar fill counts.
-// Ordered descending so first match wins.
+// Ordered descending so first match wins. Tuned for 16-char bars.
 var DefaultThresholds = []Threshold{
-	{400, 10}, {300, 9}, {200, 8}, {150, 7}, {100, 6},
-	{75, 5}, {50, 4}, {30, 3}, {15, 2}, {0, 1},
+	{800, 16}, {600, 15}, {500, 14}, {400, 13}, {350, 12}, {300, 11},
+	{250, 10}, {200, 9}, {150, 8}, {100, 7}, {75, 6},
+	{50, 5}, {30, 4}, {15, 3}, {5, 2}, {0, 1},
 }
 
 // DefaultCharLevels maps total changes to block density characters.

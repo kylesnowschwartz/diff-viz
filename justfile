@@ -1,7 +1,28 @@
 # diff-viz - Git diff visualization tool
+# Part of bumper-lanes-dev workspace (../go.work)
 
 # Run tests (default)
 default: test
+
+# ─────────────────────────────────────────────────────────────
+# Workspace commands (passthrough to ../justfile)
+# ─────────────────────────────────────────────────────────────
+
+# Sync bumper-lanes to latest diff-viz tag
+sync-deps:
+    just -f ../justfile sync-deps
+
+# Verify bumper-lanes builds without workspace
+verify-upstream:
+    just -f ../justfile verify-upstream
+
+# Show status of both repos
+workspace-status:
+    just -f ../justfile status
+
+# ─────────────────────────────────────────────────────────────
+# Local commands
+# ─────────────────────────────────────────────────────────────
 
 # Run all tests
 test:

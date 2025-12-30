@@ -7,11 +7,12 @@ import (
 // LayoutCell holds computed pixel coordinates for a cell.
 // Unlike IcicleCell, this is purely layout data - no rendering state.
 type LayoutCell struct {
-	Path   string // Full path for lookup
-	Label  string // Display name
-	Add    int    // Additions
-	Del    int    // Deletions
-	X0, X1 int    // Horizontal pixel bounds [X0, X1)
+	Path        string // Full path for lookup
+	Label       string // Display name
+	Add         int    // Additions
+	Del         int    // Deletions
+	X0, X1      int    // Horizontal pixel bounds [X0, X1)
+	IsUntracked bool   // True if this is an untracked file
 }
 
 // Width returns the cell width in pixels.
@@ -26,6 +27,9 @@ func (c LayoutCell) Total() int {
 
 // Color returns the appropriate color code based on add/del ratio.
 func (c LayoutCell) Color() string {
+	if c.IsUntracked {
+		return ColorNew // Yellow for untracked files
+	}
 	switch {
 	case c.Add > 0 && c.Del == 0:
 		return ColorAdd
@@ -174,12 +178,13 @@ func diceLevel(nodes []*TreeNode, startX, availWidth, totalValue, minWidth int, 
 		}
 
 		cells = append(cells, LayoutCell{
-			Path:  node.Path,
-			Label: label,
-			Add:   node.Add,
-			Del:   node.Del,
-			X0:    x,
-			X1:    x + widths[i],
+			Path:        node.Path,
+			Label:       label,
+			Add:         node.Add,
+			Del:         node.Del,
+			X0:          x,
+			X1:          x + widths[i],
+			IsUntracked: node.IsUntracked,
 		})
 		x += widths[i]
 	}

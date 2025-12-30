@@ -93,15 +93,19 @@ func (r *HotpathRenderer) renderTopLevel(node *TreeNode, total int) {
 
 	// Directory/file name with inline bar
 	name := node.Name
+	nameColor := ColorReset
 	if node.IsDir {
 		name += "/"
+		nameColor = ColorDir
+	} else if node.IsUntracked {
+		nameColor = ColorNew
 	}
 
 	bar := r.inlineBar(pct, node.Add, node.Del)
 	stats := r.formatStats(node.Add, node.Del)
 	pctStr := fmt.Sprintf("(%2.0f%%)", pct)
 
-	fmt.Fprintf(r.w, "%s %s %s %s\n", name, bar, stats, pctStr)
+	fmt.Fprintf(r.w, "%s%s%s %s %s %s\n", r.color(nameColor), name, r.color(ColorReset), bar, stats, pctStr)
 
 	// If directory, follow the hot trail
 	if node.IsDir && len(node.Children) > 0 {
@@ -151,12 +155,16 @@ func (r *HotpathRenderer) renderHotTrail(children []*TreeNode, prefix string, de
 // renderHotNode renders a single node on the hot trail.
 func (r *HotpathRenderer) renderHotNode(node *TreeNode, prefix string) {
 	name := node.Name
+	nameColor := ColorReset
 	if node.IsDir {
 		name += "/"
+		nameColor = ColorDir
+	} else if node.IsUntracked {
+		nameColor = ColorNew
 	}
 
 	stats := r.formatStats(node.Add, node.Del)
-	fmt.Fprintf(r.w, "%s%s%s %s\n", prefix, hotpathTreeBranch, name, stats)
+	fmt.Fprintf(r.w, "%s%s%s%s%s %s\n", prefix, hotpathTreeBranch, r.color(nameColor), name, r.color(ColorReset), stats)
 }
 
 // renderCompressed renders the "...N more file(s)" line.

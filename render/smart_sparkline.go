@@ -37,10 +37,11 @@ func NewSmartSparklineRenderer(w io.Writer, useColor bool) *SmartSparklineRender
 
 // smartEntry represents a single item to display.
 type smartEntry struct {
-	path  string
-	add   int
-	del   int
-	total int
+	path   string
+	add    int
+	del    int
+	total  int
+	hasNew bool // Contains untracked files
 }
 
 // Render outputs diff stats as a multi-column table.
@@ -120,9 +121,13 @@ func (r *SmartSparklineRenderer) buildAggregatedEntries(stats *diff.DiffStats) [
 	for dir, segments := range groups {
 		// Sum all segments in this group
 		var add, del int
+		hasNew := false
 		for _, seg := range segments {
 			add += seg.Add
 			del += seg.Del
+			if seg.HasNew {
+				hasNew = true
+			}
 		}
 
 		name := dir
@@ -131,10 +136,11 @@ func (r *SmartSparklineRenderer) buildAggregatedEntries(stats *diff.DiffStats) [
 		}
 
 		entries = append(entries, smartEntry{
-			path:  name,
-			add:   add,
-			del:   del,
-			total: add + del,
+			path:   name,
+			add:    add,
+			del:    del,
+			total:  add + del,
+			hasNew: hasNew,
 		})
 	}
 
@@ -153,12 +159,16 @@ func (r *SmartSparklineRenderer) buildFileEntries(stats *diff.DiffStats, depth i
 			existing.add += f.Additions
 			existing.del += f.Deletions
 			existing.total += f.Additions + f.Deletions
+			if f.IsUntracked {
+				existing.hasNew = true
+			}
 		} else {
 			pathStats[truncPath] = &smartEntry{
-				path:  truncPath,
-				add:   f.Additions,
-				del:   f.Deletions,
-				total: f.Additions + f.Deletions,
+				path:   truncPath,
+				add:    f.Additions,
+				del:    f.Deletions,
+				total:  f.Additions + f.Deletions,
+				hasNew: f.IsUntracked,
 			}
 		}
 	}
@@ -207,8 +217,10 @@ func (r *SmartSparklineRenderer) renderEntry(e smartEntry, pathWidth int, barCon
 
 	// Color based on content
 	pathColor := ColorDir
-	// Check if it looks like a file (has extension or no trailing number in parens)
-	if !isAggregatedPath(path) {
+	if e.hasNew {
+		pathColor = ColorNew // Yellow for untracked files
+	} else if !isAggregatedPath(path) {
+		// Check if it looks like a file (has extension or no trailing number in parens)
 		pathColor = ColorReset
 	}
 

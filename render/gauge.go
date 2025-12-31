@@ -3,34 +3,40 @@ package render
 import (
 	"fmt"
 	"io"
+	"math"
 	"strings"
 
 	"github.com/kylesnowschwartz/diff-viz/v2/diff"
 )
 
 const (
-	defaultGaugeWidth = 30 // Default width of the gauge bar
+	defaultGaugeWidth = 20   // Default width of the gauge bar
+	defaultMaxDirs    = 4    // Max directories to show in percentage breakdown
+	scaleMaxReference = 2000 // Reference max for sqrt scale (2000 lines = full bar)
 )
 
-// GaugeRenderer shows budget/threshold consumption as a single-line gauge.
+// GaugeRenderer shows git diff changes as a single-line HUD gauge.
+// Uses square root scaling to visualize magnitude and directory percentages
+// to show change distribution.
 type GaugeRenderer struct {
-	UseColor  bool
-	Width     int // Gauge bar width (default 30)
-	Threshold int // Optional budget threshold (default 0 = show totals only)
-	w         io.Writer
+	UseColor bool
+	Width    int // Gauge bar width (default 20)
+	MaxDirs  int // Max directories in percentage breakdown (default 4)
+	w        io.Writer
 }
 
-// NewGaugeRenderer creates a progress gauge renderer.
+// NewGaugeRenderer creates a HUD-style gauge renderer.
 func NewGaugeRenderer(w io.Writer, useColor bool) *GaugeRenderer {
 	return &GaugeRenderer{
-		UseColor:  useColor,
-		Width:     defaultGaugeWidth,
-		Threshold: 0,
-		w:         w,
+		UseColor: useColor,
+		Width:    defaultGaugeWidth,
+		MaxDirs:  defaultMaxDirs,
+		w:        w,
 	}
 }
 
-// Render outputs the gauge visualization.
+// Render outputs the gauge visualization as a single HUD-style line.
+// Format: ████████████░░░░░░░░ +312 -13  src 55% | tests 30% | docs 15%
 func (r *GaugeRenderer) Render(stats *diff.DiffStats) {
 	if stats.TotalFiles == 0 {
 		fmt.Fprintln(r.w, "No changes")
@@ -39,79 +45,65 @@ func (r *GaugeRenderer) Render(stats *diff.DiffStats) {
 
 	total := stats.TotalAdd + stats.TotalDel
 
-	// Main gauge line
-	if r.Threshold > 0 {
-		r.renderWithThreshold(stats, total)
-	} else {
-		r.renderTotalsOnly(stats, total)
-	}
-
-	// Per-directory breakdown (compact single line)
-	r.renderDirBreakdown(stats)
-}
-
-// renderWithThreshold shows percentage-based budget consumption.
-func (r *GaugeRenderer) renderWithThreshold(stats *diff.DiffStats, total int) {
-	percentage := (total * 100) / r.Threshold
-	if percentage > 100 {
-		percentage = 100
-	}
-
-	filled := (total * r.Width) / r.Threshold
-	if filled > r.Width {
-		filled = r.Width
-	}
-
-	// Split filled portion between adds (green) and dels (red)
-	addBlocks, delBlocks := r.splitBlocks(stats.TotalAdd, stats.TotalDel, filled)
-
+	// Build the single-line HUD output
 	var sb strings.Builder
-	sb.WriteString("Budget: ")
-	sb.WriteString(r.renderBar(addBlocks, delBlocks, r.Width-filled))
-	sb.WriteString(fmt.Sprintf("  %d%% (%d/%d)", percentage, total, r.Threshold))
 
-	fmt.Fprintln(r.w, sb.String())
-}
+	// Part 1: The gauge bar (log scale)
+	sb.WriteString(r.renderBar(stats, total))
 
-// renderTotalsOnly shows total changes without threshold.
-func (r *GaugeRenderer) renderTotalsOnly(stats *diff.DiffStats, total int) {
-	// Use full width for display, filled proportional to total
-	filled := r.Width
-	if total < r.Width {
-		filled = total
-		if filled < 1 && total > 0 {
-			filled = 1
-		}
-	}
-
-	// Split filled portion between adds (green) and dels (red)
-	addBlocks, delBlocks := r.splitBlocks(stats.TotalAdd, stats.TotalDel, filled)
-
-	var sb strings.Builder
-	sb.WriteString("Total: ")
-	sb.WriteString(r.renderBar(addBlocks, delBlocks, r.Width-filled))
-	sb.WriteString("  ")
-	sb.WriteString(r.color(ColorAdd))
-	sb.WriteString(fmt.Sprintf("+%d", stats.TotalAdd))
-	sb.WriteString(r.color(ColorReset))
+	// Part 2: The numbers (+add -del)
 	sb.WriteString(" ")
-	sb.WriteString(r.color(ColorDel))
-	sb.WriteString(fmt.Sprintf("-%d", stats.TotalDel))
-	sb.WriteString(r.color(ColorReset))
-	sb.WriteString(fmt.Sprintf(" (%d lines)", total))
+	sb.WriteString(r.renderNumbers(stats))
+
+	// Part 3: Directory percentages
+	dirPcts := r.renderDirPercentages(stats, total)
+	if dirPcts != "" {
+		sb.WriteString("  ")
+		sb.WriteString(dirPcts)
+	}
 
 	fmt.Fprintln(r.w, sb.String())
 }
 
-// splitBlocks divides filled blocks proportionally between adds and dels.
-func (r *GaugeRenderer) splitBlocks(add, del, filled int) (addBlocks, delBlocks int) {
+// renderBar creates the gauge bar using sqrt scale for magnitude visualization.
+func (r *GaugeRenderer) renderBar(stats *diff.DiffStats, total int) string {
+	filled := r.sqrtScaleFilled(total)
+	return r.buildBar(stats.TotalAdd, stats.TotalDel, filled)
+}
+
+// sqrtScaleFilled calculates bar fill using square root scale.
+// Sqrt provides better visual differentiation than log scale:
+// - 10 lines = ~10%, 100 lines = ~30%, 500 lines = ~70%, 1000+ lines = full
+func (r *GaugeRenderer) sqrtScaleFilled(total int) int {
+	if total <= 0 {
+		return 0
+	}
+	if total >= scaleMaxReference {
+		return r.Width
+	}
+
+	// Sqrt scale: filled = sqrt(total) / sqrt(max) * width
+	sqrtTotal := math.Sqrt(float64(total))
+	sqrtMax := math.Sqrt(float64(scaleMaxReference))
+	filled := int(math.Round(sqrtTotal / sqrtMax * float64(r.Width)))
+
+	// Ensure minimum 1 block for any change
+	if filled < 1 {
+		filled = 1
+	}
+	return filled
+}
+
+// buildBar creates the gauge bar with colored add/del blocks.
+func (r *GaugeRenderer) buildBar(add, del, filled int) string {
 	total := add + del
 	if total == 0 || filled == 0 {
-		return 0, 0
+		return strings.Repeat(BlockEmpty, r.Width)
 	}
 
-	addBlocks = (add * filled) / total
-	delBlocks = filled - addBlocks
+	// Split filled portion between adds (green) and dels (red)
+	addBlocks := (add * filled) / total
+	delBlocks := filled - addBlocks
 
 	// Ensure at least 1 block for non-zero values
 	if add > 0 && addBlocks == 0 && filled > 0 {
@@ -122,11 +114,6 @@ func (r *GaugeRenderer) splitBlocks(add, del, filled int) (addBlocks, delBlocks 
 		addBlocks = filled - 1
 	}
 
-	return addBlocks, delBlocks
-}
-
-// renderBar creates the gauge bar with colored add/del blocks and empty padding.
-func (r *GaugeRenderer) renderBar(addBlocks, delBlocks, emptyBlocks int) string {
 	var sb strings.Builder
 
 	if addBlocks > 0 {
@@ -141,88 +128,93 @@ func (r *GaugeRenderer) renderBar(addBlocks, delBlocks, emptyBlocks int) string 
 		sb.WriteString(r.color(ColorReset))
 	}
 
-	if emptyBlocks > 0 {
-		sb.WriteString(strings.Repeat(BlockEmpty, emptyBlocks))
+	// Pad with empty blocks to fixed width
+	if padding := r.Width - filled; padding > 0 {
+		sb.WriteString(strings.Repeat(BlockEmpty, padding))
 	}
 
 	return sb.String()
 }
 
-// renderDirBreakdown shows a compact per-directory summary.
-func (r *GaugeRenderer) renderDirBreakdown(stats *diff.DiffStats) {
+// renderNumbers formats the add/del counts, omitting zeros.
+func (r *GaugeRenderer) renderNumbers(stats *diff.DiffStats) string {
+	var sb strings.Builder
+
+	if stats.TotalAdd > 0 {
+		sb.WriteString(r.color(ColorAdd))
+		sb.WriteString(fmt.Sprintf("+%d", stats.TotalAdd))
+		sb.WriteString(r.color(ColorReset))
+	}
+	if stats.TotalDel > 0 {
+		if stats.TotalAdd > 0 {
+			sb.WriteString(" ")
+		}
+		sb.WriteString(r.color(ColorDel))
+		sb.WriteString(fmt.Sprintf("-%d", stats.TotalDel))
+		sb.WriteString(r.color(ColorReset))
+	}
+
+	return sb.String()
+}
+
+// renderDirPercentages calculates and formats directory distribution.
+// Returns format like "src 55% | tests 30% | docs 15%"
+func (r *GaugeRenderer) renderDirPercentages(stats *diff.DiffStats, total int) string {
+	if total == 0 || len(stats.Files) == 0 {
+		return ""
+	}
+
+	// Group by top-level directory
 	groups := GroupByDepth(stats.Files, 1)
 	if len(groups) == 0 {
-		return
+		return ""
 	}
 
 	// Sort directories by total changes descending
 	sortedDirs := SortTopDirs(groups)
 
-	// Calculate max total for scaling mini-bars
-	maxTotal := 0
+	// Calculate percentages
+	type dirPct struct {
+		name string
+		pct  int
+	}
+	pcts := make([]dirPct, 0, len(sortedDirs))
 	for _, dir := range sortedDirs {
 		dirTotal := 0
 		for _, seg := range groups[dir] {
 			dirTotal += seg.Total()
 		}
-		if dirTotal > maxTotal {
-			maxTotal = dirTotal
+		pct := (dirTotal * 100) / total
+		// Only include dirs with at least 1%
+		if pct >= 1 {
+			pcts = append(pcts, dirPct{name: dir, pct: pct})
 		}
 	}
 
-	// Build compact breakdown line
+	if len(pcts) == 0 {
+		return ""
+	}
+
+	// Build output string
 	var sb strings.Builder
-	sb.WriteString("By dir: ")
-
-	// Collect dir entries with their totals for display
-	type dirEntry struct {
-		name  string
-		add   int
-		del   int
-		total int
-	}
-	entries := make([]dirEntry, 0, len(sortedDirs))
-	for _, dir := range sortedDirs {
-		var dirAdd, dirDel int
-		for _, seg := range groups[dir] {
-			dirAdd += seg.Add
-			dirDel += seg.Del
-		}
-		entries = append(entries, dirEntry{name: dir, add: dirAdd, del: dirDel, total: dirAdd + dirDel})
+	showCount := len(pcts)
+	if showCount > r.MaxDirs {
+		showCount = r.MaxDirs
 	}
 
-	// Limit to top 5 directories for compact display
-	showCount := len(entries)
-	if showCount > 5 {
-		showCount = 5
-	}
-
+	sep := Separator(r.UseColor)
 	for i := 0; i < showCount; i++ {
 		if i > 0 {
-			sb.WriteString("  ")
+			sb.WriteString(sep)
 		}
-		entry := entries[i]
-
-		// Mini-bar: scale to 8 blocks max, with add/del ratio coloring
-		miniWidth := 8
-		filled := 1
-		if maxTotal > 0 {
-			filled = (entry.total * miniWidth) / maxTotal
-			if filled < 1 {
-				filled = 1
-			}
-		}
-
-		sb.WriteString(entry.name)
-		sb.WriteString(" ")
-		sb.WriteString(RatioBar(entry.add, entry.del, filled, filled, BlockFull, r.color))
+		sb.WriteString(fmt.Sprintf("%s %d%%", pcts[i].name, pcts[i].pct))
 	}
 
-	if len(entries) > showCount {
-		sb.WriteString(fmt.Sprintf("  +%d more", len(entries)-showCount))
+	if len(pcts) > showCount {
+		sb.WriteString(fmt.Sprintf(" +%d more", len(pcts)-showCount))
 	}
 
-	fmt.Fprintln(r.w, sb.String())
+	return sb.String()
 }
 
 // color returns the ANSI code if color is enabled.

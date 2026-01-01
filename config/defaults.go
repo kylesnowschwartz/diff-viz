@@ -18,7 +18,6 @@ var ModeDefaults = map[string]ModeConfig{
 	"sparkline-tree": {N: intPtr(10)},      // show more files in --files mode
 	"icicle":         {Depth: intPtr(4)},   // deeper hierarchy
 	"brackets":       {Expand: intPtr(-1)}, // auto
-	"heatmap":        {Depth: intPtr(4)},   // show deeper files (e.g., cmd/git-diff-tree/main.go)
 }
 
 // DefaultConfig returns the hardcoded global default configuration.

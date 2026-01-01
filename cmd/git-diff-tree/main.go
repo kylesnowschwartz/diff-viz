@@ -346,10 +346,6 @@ func getRenderer(mode string, useColor bool, width, depth, expand, count int, so
 		r := render.NewDepthRenderer(os.Stdout, useColor)
 		r.MaxDepth = depth
 		return r
-	case "heatmap":
-		r := render.NewHeatmapRenderer(os.Stdout, useColor)
-		r.MaxDepth = depth
-		return r
 	case "stat":
 		return render.NewStatRenderer(os.Stdout, args)
 	default:

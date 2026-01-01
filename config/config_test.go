@@ -219,9 +219,6 @@ func TestDefaultConfigJSON(t *testing.T) {
 	if cfg.Modes["icicle"].Depth == nil || *cfg.Modes["icicle"].Depth != 4 {
 		t.Errorf("DefaultConfigJSON Modes[icicle].Depth: got %v, want 4", cfg.Modes["icicle"].Depth)
 	}
-	if cfg.Modes["heatmap"].Depth == nil || *cfg.Modes["heatmap"].Depth != 4 {
-		t.Errorf("DefaultConfigJSON Modes[heatmap].Depth: got %v, want 4", cfg.Modes["heatmap"].Depth)
-	}
 	if cfg.Modes["smart"].Depth == nil || *cfg.Modes["smart"].Depth != 2 {
 		t.Errorf("DefaultConfigJSON Modes[smart].Depth: got %v, want 2", cfg.Modes["smart"].Depth)
 	}

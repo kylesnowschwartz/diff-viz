@@ -74,6 +74,33 @@ func TestGaugeRenderer_Render_NoChanges(t *testing.T) {
 	}
 }
 
+func TestGaugeRenderer_Render_BinaryFiles(t *testing.T) {
+	var buf bytes.Buffer
+	r := NewGaugeRenderer(&buf, false)
+
+	// Binary files have 0 adds/dels but non-zero file count
+	stats := &diff.DiffStats{
+		TotalAdd:   0,
+		TotalDel:   0,
+		TotalFiles: 9,
+		Files: []diff.FileStat{
+			{Path: "assets/image1.png", Additions: 0, Deletions: 0, IsBinary: true, IsUntracked: true},
+			{Path: "assets/image2.png", Additions: 0, Deletions: 0, IsBinary: true, IsUntracked: true},
+		},
+	}
+	r.Render(stats)
+
+	got := buf.String()
+	// Should show file count, not empty
+	if !strings.Contains(got, "9 files") {
+		t.Errorf("Render() should contain '9 files' for binary files: %q", got)
+	}
+	// Should have empty bar (no line changes)
+	if !strings.Contains(got, strings.Repeat(BlockEmpty, r.Width)) {
+		t.Errorf("Render() should have empty bar for binary files: %q", got)
+	}
+}
+
 func TestGaugeRenderer_Render_AllAdditions(t *testing.T) {
 	var buf bytes.Buffer
 	r := NewGaugeRenderer(&buf, false)
@@ -217,7 +244,7 @@ func TestGaugeRenderer_Render_MaxDirsLimit(t *testing.T) {
 	}
 }
 
-func TestGaugeRenderer_Render_SingleLine(t *testing.T) {
+func TestGaugeRenderer_Render_MultiLine(t *testing.T) {
 	var buf bytes.Buffer
 	r := NewGaugeRenderer(&buf, false)
 
@@ -234,10 +261,18 @@ func TestGaugeRenderer_Render_SingleLine(t *testing.T) {
 	r.Render(stats)
 
 	got := buf.String()
-	// Output should be a single line (one newline at the end)
+	// Output should be two lines: bar+numbers, then percentages
 	lines := strings.Split(strings.TrimRight(got, "\n"), "\n")
-	if len(lines) != 1 {
-		t.Errorf("Render() produced %d lines, want 1: %q", len(lines), got)
+	if len(lines) != 2 {
+		t.Errorf("Render() produced %d lines, want 2: %q", len(lines), got)
+	}
+	// Line 1 should have the bar and numbers
+	if !strings.Contains(lines[0], "+100") {
+		t.Errorf("Line 1 should contain '+100': %q", lines[0])
+	}
+	// Line 2 should have directory percentages
+	if !strings.Contains(lines[1], "src") || !strings.Contains(lines[1], "%") {
+		t.Errorf("Line 2 should contain directory percentages: %q", lines[1])
 	}
 }
 

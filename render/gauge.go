@@ -35,8 +35,9 @@ func NewGaugeRenderer(w io.Writer, useColor bool) *GaugeRenderer {
 	}
 }
 
-// Render outputs the gauge visualization as a single HUD-style line.
-// Format: ████████████░░░░░░░░ +312 -13  src 55% | tests 30% | docs 15%
+// Render outputs the gauge visualization.
+// Line 1: ████████████░░░░░░░░ +312 -13
+// Line 2: src 55% │ tests 30% │ docs 15%
 func (r *GaugeRenderer) Render(stats *diff.DiffStats) {
 	if stats.TotalFiles == 0 {
 		fmt.Fprintln(r.w, "No changes")
@@ -45,24 +46,18 @@ func (r *GaugeRenderer) Render(stats *diff.DiffStats) {
 
 	total := stats.TotalAdd + stats.TotalDel
 
-	// Build the single-line HUD output
+	// Line 1: gauge bar + numbers
 	var sb strings.Builder
-
-	// Part 1: The gauge bar (log scale)
 	sb.WriteString(r.renderBar(stats, total))
-
-	// Part 2: The numbers (+add -del)
 	sb.WriteString(" ")
 	sb.WriteString(r.renderNumbers(stats))
+	fmt.Fprintln(r.w, sb.String())
 
-	// Part 3: Directory percentages
+	// Line 2: directory percentages (if any)
 	dirPcts := r.renderDirPercentages(stats, total)
 	if dirPcts != "" {
-		sb.WriteString("  ")
-		sb.WriteString(dirPcts)
+		fmt.Fprintln(r.w, dirPcts)
 	}
-
-	fmt.Fprintln(r.w, sb.String())
 }
 
 // renderBar creates the gauge bar using sqrt scale for magnitude visualization.
@@ -137,7 +132,13 @@ func (r *GaugeRenderer) buildBar(add, del, filled int) string {
 }
 
 // renderNumbers formats the add/del counts, omitting zeros.
+// When no line changes but files exist (binary files), shows file count.
 func (r *GaugeRenderer) renderNumbers(stats *diff.DiffStats) string {
+	// Handle binary/no-line-count files
+	if stats.TotalAdd == 0 && stats.TotalDel == 0 && stats.TotalFiles > 0 {
+		return fmt.Sprintf("%d files", stats.TotalFiles)
+	}
+
 	var sb strings.Builder
 
 	if stats.TotalAdd > 0 {

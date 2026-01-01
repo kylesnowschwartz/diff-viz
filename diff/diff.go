@@ -377,21 +377,9 @@ func CaptureCurrentTree() (string, error) {
 		gitWithTempIndex("read-tree", "--empty").Run()
 	}
 
-	// Add tracked file changes (staged and unstaged)
-	gitWithTempIndex("add", "-u", ".").Run()
-
-	// Add untracked files (respecting .gitignore)
-	lsCmd := exec.Command("git", "ls-files", "--others", "--exclude-standard")
-	untrackedOutput, _ := lsCmd.Output()
-	if len(untrackedOutput) > 0 {
-		scanner := bufio.NewScanner(bytes.NewReader(untrackedOutput))
-		for scanner.Scan() {
-			path := scanner.Text()
-			if path != "" {
-				gitWithTempIndex("add", path).Run()
-			}
-		}
-	}
+	// Add all changes: tracked modifications, untracked files, deletions
+	// Respects .gitignore automatically. Single command vs N+2 for N untracked files.
+	gitWithTempIndex("add", "-A", ".").Run()
 
 	// Write tree from temp index
 	writeCmd := gitWithTempIndex("write-tree")

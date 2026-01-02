@@ -136,10 +136,13 @@ func (r *IcicleRenderer) Render(stats *diff.DiffStats) {
 }
 
 // buildTree constructs a tree from flat file paths.
+// Note: Unlike tree mode, icicle does NOT collapse single-child paths.
+// In icicle charts, row position = depth, so collapsing would misalign
+// files that are at the same actual depth but in different branches.
 func (r *IcicleRenderer) buildTree(files []diff.FileStat) *TreeNode {
 	root := BuildTreeFromFiles(files)
 	CalcTotals(root)
-	CollapseSingleChildPaths(root)
+	// Don't collapse - preserve true depth for proper row alignment
 	return root
 }
 
@@ -181,10 +184,17 @@ func (r *IcicleRenderer) renderBorder(layout *Layout, levelIdx int, isTop bool) 
 func (r *IcicleRenderer) renderContentRow(layout *Layout, levelIdx int) {
 	level := layout.Cells[levelIdx]
 
-	// Get parent boundaries to draw separators in empty regions
+	// Get ALL ancestor boundaries to draw separators in empty regions.
+	// This ensures column divisions from any level above remain visible,
+	// even when intermediate levels have sparse cells or terminated branches.
 	var parentBoundaries []int
 	if levelIdx > 0 {
-		parentBoundaries = layout.Boundaries[levelIdx-1]
+		// Merge boundaries from ALL ancestor levels
+		for i := 0; i < levelIdx; i++ {
+			if i < len(layout.Boundaries) {
+				parentBoundaries = mergeAndSortBoundaries(parentBoundaries, layout.Boundaries[i])
+			}
+		}
 	}
 
 	var sb strings.Builder
@@ -378,11 +388,22 @@ func (r *IcicleRenderer) renderLeafBorder(leaves []LayoutCell) {
 }
 
 // formatCentered returns the label centered within width, with ANSI color codes.
+// Includes braille indicator for hidden siblings if present.
 func (r *IcicleRenderer) formatCentered(cell LayoutCell, width, reserveRight int) (content string, visualWidth int) {
-	label := r.truncate(cell.Label, width-reserveRight)
+	// Calculate braille indicator (1 char if present)
+	braille := hiddenSiblingsBraille(cell.HiddenSiblings)
+	brailleLen := utf8.RuneCountInString(braille)
+
+	// Reserve space for braille indicator
+	maxLabelLen := width - reserveRight - brailleLen
+	if maxLabelLen < 1 {
+		maxLabelLen = 1
+	}
+	label := r.truncate(cell.Label, maxLabelLen)
 	labelLen := utf8.RuneCountInString(label)
 
-	padding := width - labelLen - reserveRight
+	totalContent := labelLen + brailleLen
+	padding := width - totalContent - reserveRight
 	if padding < 0 {
 		padding = 0
 	}
@@ -394,9 +415,14 @@ func (r *IcicleRenderer) formatCentered(cell LayoutCell, width, reserveRight int
 	sb.WriteString(r.color(cell.Color()))
 	sb.WriteString(label)
 	sb.WriteString(r.color(ColorReset))
+	if braille != "" {
+		sb.WriteString(r.color(ColorDim))
+		sb.WriteString(braille)
+		sb.WriteString(r.color(ColorReset))
+	}
 	sb.WriteString(strings.Repeat(" ", rightPad))
 
-	return sb.String(), leftPad + labelLen + rightPad
+	return sb.String(), leftPad + totalContent + rightPad
 }
 
 // truncate shortens a string to fit within maxLen runes.
@@ -459,4 +485,36 @@ func CollectLeafCellsSorted(layout *Layout) []LayoutCell {
 		return leaves[i].X0 < leaves[j].X0
 	})
 	return leaves
+}
+
+// mergeAndSortBoundaries combines two boundary slices, removes duplicates, and sorts.
+func mergeAndSortBoundaries(a, b []int) []int {
+	seen := make(map[int]bool, len(a)+len(b))
+	for _, v := range a {
+		seen[v] = true
+	}
+	for _, v := range b {
+		seen[v] = true
+	}
+
+	result := make([]int, 0, len(seen))
+	for v := range seen {
+		result = append(result, v)
+	}
+	sort.Ints(result)
+	return result
+}
+
+// hiddenSiblingsBraille returns a braille pattern indicating hidden sibling count.
+// Uses vertical dot patterns: ⠁(1) ⠃(2) ⠇(3) ⡇(4) ⣇(5) ⣿(6+)
+func hiddenSiblingsBraille(count int) string {
+	if count <= 0 {
+		return ""
+	}
+	// Braille patterns with increasing dots
+	patterns := []string{"⠁", "⠃", "⠇", "⡇", "⣇", "⣿"}
+	if count > len(patterns) {
+		count = len(patterns)
+	}
+	return patterns[count-1]
 }

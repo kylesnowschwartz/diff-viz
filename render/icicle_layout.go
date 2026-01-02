@@ -7,12 +7,13 @@ import (
 // LayoutCell holds computed pixel coordinates for a cell.
 // Unlike IcicleCell, this is purely layout data - no rendering state.
 type LayoutCell struct {
-	Path        string // Full path for lookup
-	Label       string // Display name
-	Add         int    // Additions
-	Del         int    // Deletions
-	X0, X1      int    // Horizontal pixel bounds [X0, X1)
-	IsUntracked bool   // True if this is an untracked file
+	Path           string // Full path for lookup
+	Label          string // Display name
+	Add            int    // Additions
+	Del            int    // Deletions
+	X0, X1         int    // Horizontal pixel bounds [X0, X1)
+	IsUntracked    bool   // True if this is an untracked file
+	HiddenSiblings int    // Count of sibling nodes dropped due to space constraints
 }
 
 // Width returns the cell width in pixels.
@@ -131,6 +132,9 @@ func diceLevel(nodes []*TreeNode, startX, availWidth, totalValue, minWidth int, 
 		return nil
 	}
 
+	// Track how many siblings will be hidden for this group
+	hiddenSiblings := 0
+
 	// Calculate minimum space required
 	minReserved := n * minWidth
 	if minReserved > availWidth {
@@ -140,7 +144,8 @@ func diceLevel(nodes []*TreeNode, startX, availWidth, totalValue, minWidth int, 
 			*dropped += n
 			return nil
 		}
-		*dropped += n - maxNodes
+		hiddenSiblings = n - maxNodes
+		*dropped += hiddenSiblings
 		sorted = sorted[:maxNodes]
 		n = maxNodes
 		minReserved = n * minWidth
@@ -178,13 +183,14 @@ func diceLevel(nodes []*TreeNode, startX, availWidth, totalValue, minWidth int, 
 		}
 
 		cells = append(cells, LayoutCell{
-			Path:        node.Path,
-			Label:       label,
-			Add:         node.Add,
-			Del:         node.Del,
-			X0:          x,
-			X1:          x + widths[i],
-			IsUntracked: node.IsUntracked,
+			Path:           node.Path,
+			Label:          label,
+			Add:            node.Add,
+			Del:            node.Del,
+			X0:             x,
+			X1:             x + widths[i],
+			IsUntracked:    node.IsUntracked,
+			HiddenSiblings: hiddenSiblings,
 		})
 		x += widths[i]
 	}

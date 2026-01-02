@@ -7,6 +7,7 @@ const (
 	ColorNew   = "\033[33m"     // Yellow for untracked/new
 	ColorAdd   = "\033[32m"     // Green for additions
 	ColorDel   = "\033[31m"     // Red for deletions
+	ColorDim   = "\033[2m"      // Dim/faint for secondary info
 	ColorReset = "\033[0m"      // Reset to default
 )
 

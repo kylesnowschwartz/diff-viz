@@ -121,12 +121,13 @@ func (r *IcicleRenderer) Render(stats *diff.DiffStats) {
 	r.renderStatsFooterFromCells(leafCells)
 	r.renderLeafBorder(leafCells)
 
-	// Summary line
+	// Summary line with braille key for hidden indicator
 	if layout.Dropped > 0 {
-		fmt.Fprintf(r.w, "%s+%d%s %s-%d%s in %d files (%d hidden)\n",
+		fmt.Fprintf(r.w, "%s+%d%s %s-%d%s in %d files (%d %s⣿%s hidden)\n",
 			r.color(ColorAdd), stats.TotalAdd, r.color(ColorReset),
 			r.color(ColorDel), stats.TotalDel, r.color(ColorReset),
-			stats.TotalFiles, layout.Dropped)
+			stats.TotalFiles, layout.Dropped,
+			r.color(ColorDim), r.color(ColorReset))
 	} else {
 		fmt.Fprintf(r.w, "%s+%d%s %s-%d%s in %d files\n",
 			r.color(ColorAdd), stats.TotalAdd, r.color(ColorReset),
@@ -311,14 +312,19 @@ func (r *IcicleRenderer) renderStatsFooterFromCells(leaves []LayoutCell) {
 			pos++
 		}
 
-		// Format stats with colors
+		// Format stats with colors, plus total file count indicator
 		addPart := fmt.Sprintf("+%d", cell.Add)
 		delPart := ""
 		if cell.Del > 0 {
 			delPart = fmt.Sprintf(" -%d", cell.Del)
 		}
+		// Show total count (visible + hidden), only when there are hidden siblings
+		braille := ""
+		if cell.HiddenSiblings > 0 {
+			braille = " " + hiddenSiblingsBraille(cell.HiddenSiblings+1)
+		}
 
-		statsLen := utf8.RuneCountInString(addPart + delPart)
+		statsLen := utf8.RuneCountInString(addPart + delPart + braille)
 		cellWidth := cell.Width()
 		availWidth := cellWidth - 1
 
@@ -332,12 +338,21 @@ func (r *IcicleRenderer) renderStatsFooterFromCells(leaves []LayoutCell) {
 			coloredStats.WriteString(delPart)
 			coloredStats.WriteString(r.color(ColorReset))
 		}
+		if braille != "" {
+			coloredStats.WriteString(r.color(ColorDim))
+			coloredStats.WriteString(braille)
+			coloredStats.WriteString(r.color(ColorReset))
+		}
 
-		// Truncate if needed
+		// Truncate if needed (drop braille first, then delPart)
 		if statsLen > availWidth {
+			// Try without braille
 			plainStats := addPart + delPart
-			plainStats = plainStats[:availWidth]
-			statsLen = availWidth
+			statsLen = utf8.RuneCountInString(plainStats)
+			if statsLen > availWidth {
+				plainStats = plainStats[:availWidth]
+				statsLen = availWidth
+			}
 			coloredStats.Reset()
 			coloredStats.WriteString(plainStats)
 		}
@@ -388,22 +403,11 @@ func (r *IcicleRenderer) renderLeafBorder(leaves []LayoutCell) {
 }
 
 // formatCentered returns the label centered within width, with ANSI color codes.
-// Includes braille indicator for hidden siblings if present.
 func (r *IcicleRenderer) formatCentered(cell LayoutCell, width, reserveRight int) (content string, visualWidth int) {
-	// Calculate braille indicator (1 char if present)
-	braille := hiddenSiblingsBraille(cell.HiddenSiblings)
-	brailleLen := utf8.RuneCountInString(braille)
-
-	// Reserve space for braille indicator
-	maxLabelLen := width - reserveRight - brailleLen
-	if maxLabelLen < 1 {
-		maxLabelLen = 1
-	}
-	label := r.truncate(cell.Label, maxLabelLen)
+	label := r.truncate(cell.Label, width-reserveRight)
 	labelLen := utf8.RuneCountInString(label)
 
-	totalContent := labelLen + brailleLen
-	padding := width - totalContent - reserveRight
+	padding := width - labelLen - reserveRight
 	if padding < 0 {
 		padding = 0
 	}
@@ -415,14 +419,9 @@ func (r *IcicleRenderer) formatCentered(cell LayoutCell, width, reserveRight int
 	sb.WriteString(r.color(cell.Color()))
 	sb.WriteString(label)
 	sb.WriteString(r.color(ColorReset))
-	if braille != "" {
-		sb.WriteString(r.color(ColorDim))
-		sb.WriteString(braille)
-		sb.WriteString(r.color(ColorReset))
-	}
 	sb.WriteString(strings.Repeat(" ", rightPad))
 
-	return sb.String(), leftPad + totalContent + rightPad
+	return sb.String(), leftPad + labelLen + rightPad
 }
 
 // truncate shortens a string to fit within maxLen runes.

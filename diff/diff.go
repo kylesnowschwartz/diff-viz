@@ -251,8 +251,10 @@ func GetAllStats(args ...string) (*DiffStats, []string, error) {
 func GetTreeDiffStats(baseTree, currentTree string) (*DiffStats, []string, error) {
 	var warnings []string
 
-	// git diff-tree --numstat baseline current
-	cmd := exec.Command("git", "diff-tree", "--numstat", "-r", baseTree, currentTree)
+	// git diff-tree --numstat -M baseline current
+	// -M detects renames, so a moved file reports only its edited lines
+	// instead of a full delete + re-add.
+	cmd := exec.Command("git", "diff-tree", "--numstat", "-M", "-r", baseTree, currentTree)
 	output, err := cmd.Output()
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
@@ -274,7 +276,7 @@ func GetTreeDiffStats(baseTree, currentTree string) (*DiffStats, []string, error
 	}
 
 	// Get file status (A=Added, M=Modified) for weighted scoring
-	statusCmd := exec.Command("git", "diff-tree", "-r", "--name-status", "--diff-filter=AM", baseTree, currentTree)
+	statusCmd := exec.Command("git", "diff-tree", "-r", "-M", "--name-status", "--diff-filter=AM", baseTree, currentTree)
 	statusOutput, statusErr := statusCmd.Output()
 	if statusErr != nil {
 		if exitErr, ok := statusErr.(*exec.ExitError); ok {
@@ -309,15 +311,22 @@ func GetTreeDiffStats(baseTree, currentTree string) (*DiffStats, []string, error
 }
 
 // resolveRenamePath extracts the destination path from git rename syntax.
-// Git shows renames as "{old => new}" which can appear anywhere in the path.
+// Git shows renames as "{old => new}" (common prefix/suffix factored out)
+// or as a bare "old => new" when the paths share nothing.
 // Examples:
 //   - "{internal/render => render}/bar.go" → "render/bar.go"
 //   - "{old.go => new.go}" → "new.go"
+//   - "big.txt => moved/big.txt" → "moved/big.txt"
 //   - "regular/path.go" → "regular/path.go" (unchanged)
 func resolveRenamePath(path string) string {
 	// Fast path: no rename syntax
 	if !strings.Contains(path, " => ") {
 		return path
+	}
+
+	// Bare form (no braces): the whole field is "old => new"
+	if !strings.Contains(path, "{") {
+		return path[strings.LastIndex(path, " => ")+4:]
 	}
 
 	// Find and replace each {old => new} with new

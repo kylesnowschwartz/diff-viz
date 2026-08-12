@@ -314,6 +314,8 @@ func getRenderer(mode string, useColor bool, width, depth, expand, count int, so
 	switch mode {
 	case "tree":
 		return render.NewTreeRenderer(os.Stdout, useColor)
+	case "plain":
+		return render.NewPlainRenderer(os.Stdout)
 	case "smart":
 		r := render.NewSmartSparklineRenderer(os.Stdout, useColor)
 		r.MaxDepth = depth
